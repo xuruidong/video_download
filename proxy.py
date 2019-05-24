@@ -48,10 +48,11 @@ def thread_fun():
 
             if(end[-1] in ["mp4","flv", "f4v"]):
                 
-                if (tmp_list[0] in old_file_list):
+                filename = tmp_list[0].split("/")[-1]
+                if (filename in old_file_list):
                     continue
                     #pass
-                old_file_list.append(tmp_list[0])
+                old_file_list.append(filename)
                 #print ("----%s"%end[-1])
                 #request_url_log.write("%s\n"%response.headers.get("content-type"))
                 request_url_log.write("%s\n"%request_url)
