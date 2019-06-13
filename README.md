@@ -1,6 +1,6 @@
 # video_download
 
-#aria2c.exe  --conf-paht=aria2.conf
+#aria2c.exe  --conf-path=aria2.conf
 
 
 #mitmdump -s proxy.py --flow-detail 0
