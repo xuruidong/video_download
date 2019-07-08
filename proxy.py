@@ -46,7 +46,7 @@ def thread_fun():
             #if (tmp_list[0].endwith() )
             end = tmp_list[0].split(".")
 
-            if(end[-1] in ["mp4","flv", "f4v"]):
+            if(end[-1] in ["mp4","flv", "f4v", "m3u8"]):
                 
                 filename = tmp_list[0].split("/")[-1]
                 if (filename in old_file_list):
