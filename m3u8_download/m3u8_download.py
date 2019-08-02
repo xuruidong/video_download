@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import os
+import os,sys
 import time
 import m3u8
 import requests
@@ -151,11 +151,18 @@ class DownLoad_M3U8(object):
             pass
 
 if __name__ == '__main__':
-
-    m3u8_url  = 'https://1258712167.vod2.myqcloud.com/fb8e6c92vodtranscq1258712167/6b2f466f5285890792148941206/drm/voddrm.token.dWluPTk4Njg3MjU4Mzt2b2RfdHlwZT0wO2NpZD0yNDQ5Mzg7dGVybV9pZD0xMDA1MDg1NjE7cGxza2V5PTAwMDQwMDAwZjRhY2Q1M2UzNzY2ZTkyZTBlYTJiZjc0YWJjZmJjNmEwNTIwYjg5Yzk3NDFlODhlYzNkODVlY2E4OGNjZGI3MGE3ZWNmOTQ2OWJmMjBhZDk7cHNrZXk9bUQ5YUhJUmJOQzVXc29ZVVpUdmJRMXRCczdwbWRHT2FPd0k0ZTZHVGhNWV8=.v.f30739.m3u8?t=5d671df3&exper=0&us=4620977417923930011&sign=2713816ba3a985135d33496b1a2eb12e'
-    #m3u8_url = 'https://valipl.cp31.ott.cibntv.net/67730CFCC063B7180AAEB50C2/03000600005D414AA0314B565B36D9496A8FBE-15BA-41B7-81FB-FAD89B449E1E-1-114.m3u8?ccode=0502&duration=2771&expire=18000&psid=5681449e695298743b6d872675308c69&ups_client_netip=7a73e09e&ups_ts=1564732504&ups_userid=&utid=ZPPpEVMJnSsCAXHsz4EppYLt&vid=XNDI5NDg5ODc4MA&vkey=Aebdf00a067fce8cd63dcb2f816a65589&sm=1&operate_type=1&bc=2'
+    m3u8_url = 'https://valipl.cp31.ott.cibntv.net/67730CFCC063B7180AAEB50C2/03000600005D414AA0314B565B36D9496A8FBE-15BA-41B7-81FB-FAD89B449E1E-1-114.m3u8?ccode=0502&duration=2771&expire=18000&psid=5681449e695298743b6d872675308c69&ups_client_netip=7a73e09e&ups_ts=1564732504&ups_userid=&utid=ZPPpEVMJnSsCAXHsz4EppYLt&vid=XNDI5NDg5ODc4MA&vkey=Aebdf00a067fce8cd63dcb2f816a65589&sm=1&operate_type=1&bc=2'
     file_name = ''
 
+    try:
+        m3u8_url = sys.argv[1]
+        file_name = sys.argv[2]
+    except:
+        pass
+    
+    print ("m3u8 : %s"%m3u8_url)
+    print ("filename : %s"%file_name)
+    
     start = time.time()
 
     M3U8 = DownLoad_M3U8(m3u8_url,file_name)
