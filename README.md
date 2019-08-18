@@ -4,3 +4,9 @@
 
 
 #mitmdump -s proxy.py --flow-detail 0
+
+
+
+m3u8_download:
+
+pip install pycryptodome

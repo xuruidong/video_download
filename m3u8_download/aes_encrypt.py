@@ -3,7 +3,8 @@ import base64
 import hashlib
 from Crypto import Random
 from Crypto.Cipher import AES
-# change  ...\Python37\Lib\site-packages\crypto to  ...\Python37\Lib\site-packages\Crypto
+# 
+# do not use Crypto, Crypto is dead, use pip install pycryptodome
 
 class AESCipher(object):
 
