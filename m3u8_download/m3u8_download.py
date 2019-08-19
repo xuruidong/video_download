@@ -48,12 +48,19 @@ class DownLoad_M3U8(object):
     '''
     def __post_init__(self):
         self.headers   = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36',}
-        self.threadpool = ThreadPoolExecutor(max_workers=10)
+        self.threadpool = ThreadPoolExecutor(max_workers=3)
         if not self.file_name:
             self.file_name = 'new.mp4'
         self.base_url = None
         self.key = None
-        self.iv = None        
+        self.iv = None      
+        self.save_path = "downloaded/"
+        try:
+            os.mkdir(self.save_path)
+        except FileExistsError :
+            pass
+        except:
+            raise
 
     def get_ts_url(self):
         m3u8_obj = m3u8.load(self.m3u8_url)
@@ -115,7 +122,7 @@ class DownLoad_M3U8(object):
                 ts_file.close() 
                 
                 decrypt_data = decrypt(data, key, iv)
-                ts_out = "decrypt-%s"%(ts_name)
+                ts_out = "%s-decrypt"%(ts_name)
                 out_file = open(ts_out, "wb")
                 out_file.write(decrypt_data)
                 out_file.close() 
@@ -133,14 +140,19 @@ class DownLoad_M3U8(object):
             '''
         ts_segs = self.get_ts_segment()
         for index,ts_seg in enumerate(ts_segs):
-            print (index)
-            self.threadpool.submit(self.download_single_ts2,[ts_seg,f'{index}.ts'])
+            save_name = "%s/%d.ts"%(self.save_path, index)
+            if (os.path.exists(save_name)):
+                print ("%s exist"%save_name)
+                continue
+            #print (index)
+            #self.threadpool.submit(self.download_single_ts2,[ts_seg,f'{index}.ts'])
+            self.threadpool.submit(self.download_single_ts2,[ts_seg, save_name])
             pass        
         self.threadpool.shutdown()
 
     def run(self):
         self.download_all_ts()
-        ts_path = '*.ts'
+        ts_path = '%s/*.ts'%self.save_path
         with open(self.file_name,'wb') as fn:
             for ts in natsorted(iglob(ts_path)):
                 with open(ts,'rb') as ft:
@@ -151,7 +163,11 @@ class DownLoad_M3U8(object):
             pass
 
 if __name__ == '__main__':
+<<<<<<< HEAD
     #m3u8_url = 'https://1258712167.vod2.myqcloud.com/fb8e6c92vodtranscq1258712167/4735ae7f5285890792474197496/drm/voddrm.token.dWluPTk4Njg3MjU4Mzt2b2RfdHlwZT0wO2NpZD0yNDQ5Mzg7dGVybV9pZD0xMDA1MDg1NjE7cGxza2V5PTAwMDQwMDAwYTc2NDAyM2UxZDhiMDk4NjM2YzE1Mzc3YWQ3MjhkY2E3Mzg4YWIyYzZlZTk5YjE3MDk2NTAxM2U1ZGNhYzNhZTgwOTdmODhjZjMzY2M3ZDY7cHNrZXk9cnBRSXdOZFNaYkMtQWdQKkhhTDZKR0RvZTFFckt4ZDNsemtkZGRlVzZXWV8=.v.f30741.m3u8?t=5d71aed2&exper=0&us=7842627706845041237&sign=bae1b4894ee362c1d5c2977f0c0ee71a'
+=======
+    m3u8_url = 'https://1258712167.vod2.myqcloud.com/fb8e6c92vodtranscq1258712167/064ae9345285890792914279143/drm/voddrm.token.dWluPTk4Njg3MjU4Mzt2b2RfdHlwZT0wO2NpZD0yNDQ5Mzg7dGVybV9pZD0xMDA1MDg1NjE7cGxza2V5PTAwMDQwMDAwNGRkMDIyMTBkMWYzOWFlNWM3NmRhYjAxNDc3MjQwNDNiODFhODAyNmY0OWY2MDRmOTQzNzVjZDIyNmY1ZWUxODQ5MGIwNWMzYjljM2E3N2U7cHNrZXk9.v.f30741.m3u8?t=5d7eefaf&exper=0&us=8757391803573385491&sign=ee1b56bdfab0f8034e2054ddc32d8d48'
+>>>>>>> 8595cbea57bf5c42d80de324543ebab77426b1da
     file_name = ''
     #m3u8_url = 'https://1258712167.vod2.myqcloud.com/fb8e6c92vodtranscq1258712167/d51fefdd5285890792754544992/drm/voddrm.token.dWluPTk4Njg3MjU4Mzt2b2RfdHlwZT0wO2NpZD0yNDQ5Mzg7dGVybV9pZD0xMDA1MDg1NjE7cGxza2V5PTAwMDQwMDAwYTc2NDAyM2UxZDhiMDk4NjM2YzE1Mzc3YWQ3MjhkY2E3Mzg4YWIyYzZlZTk5YjE3MDk2NTAxM2U1ZGNhYzNhZTgwOTdmODhjZjMzY2M3ZDY7cHNrZXk9.v.f30741.m3u8?t=5d7aebaf&exper=0&us=3303797222546325476&sign=afab6fb785512bc281b33238c6a52979'
 
