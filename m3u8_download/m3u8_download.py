@@ -163,22 +163,23 @@ class DownLoad_M3U8(object):
             pass
 
 if __name__ == '__main__':
-<<<<<<< HEAD
-    #m3u8_url = 'https://1258712167.vod2.myqcloud.com/fb8e6c92vodtranscq1258712167/4735ae7f5285890792474197496/drm/voddrm.token.dWluPTk4Njg3MjU4Mzt2b2RfdHlwZT0wO2NpZD0yNDQ5Mzg7dGVybV9pZD0xMDA1MDg1NjE7cGxza2V5PTAwMDQwMDAwYTc2NDAyM2UxZDhiMDk4NjM2YzE1Mzc3YWQ3MjhkY2E3Mzg4YWIyYzZlZTk5YjE3MDk2NTAxM2U1ZGNhYzNhZTgwOTdmODhjZjMzY2M3ZDY7cHNrZXk9cnBRSXdOZFNaYkMtQWdQKkhhTDZKR0RvZTFFckt4ZDNsemtkZGRlVzZXWV8=.v.f30741.m3u8?t=5d71aed2&exper=0&us=7842627706845041237&sign=bae1b4894ee362c1d5c2977f0c0ee71a'
-=======
-    m3u8_url = 'https://1258712167.vod2.myqcloud.com/fb8e6c92vodtranscq1258712167/064ae9345285890792914279143/drm/voddrm.token.dWluPTk4Njg3MjU4Mzt2b2RfdHlwZT0wO2NpZD0yNDQ5Mzg7dGVybV9pZD0xMDA1MDg1NjE7cGxza2V5PTAwMDQwMDAwNGRkMDIyMTBkMWYzOWFlNWM3NmRhYjAxNDc3MjQwNDNiODFhODAyNmY0OWY2MDRmOTQzNzVjZDIyNmY1ZWUxODQ5MGIwNWMzYjljM2E3N2U7cHNrZXk9.v.f30741.m3u8?t=5d7eefaf&exper=0&us=8757391803573385491&sign=ee1b56bdfab0f8034e2054ddc32d8d48'
->>>>>>> 8595cbea57bf5c42d80de324543ebab77426b1da
+    m3u8_url = ''
     file_name = ''
-    #m3u8_url = 'https://1258712167.vod2.myqcloud.com/fb8e6c92vodtranscq1258712167/d51fefdd5285890792754544992/drm/voddrm.token.dWluPTk4Njg3MjU4Mzt2b2RfdHlwZT0wO2NpZD0yNDQ5Mzg7dGVybV9pZD0xMDA1MDg1NjE7cGxza2V5PTAwMDQwMDAwYTc2NDAyM2UxZDhiMDk4NjM2YzE1Mzc3YWQ3MjhkY2E3Mzg4YWIyYzZlZTk5YjE3MDk2NTAxM2U1ZGNhYzNhZTgwOTdmODhjZjMzY2M3ZDY7cHNrZXk9.v.f30741.m3u8?t=5d7aebaf&exper=0&us=3303797222546325476&sign=afab6fb785512bc281b33238c6a52979'
-
-    m3u8_url = 'https://1258712167.vod2.myqcloud.com/fb8e6c92vodtranscq1258712167/77e1d5525285890792834814505/drm/voddrm.token.dWluPTk4Njg3MjU4Mzt2b2RfdHlwZT0wO2NpZD0yNDQ5Mzg7dGVybV9pZD0xMDA1MDg1NjE7cGxza2V5PTAwMDQwMDAwZTdiMDM1ZmQ0NDAwMjViODUwYTY0ZjliYTQ4NDhhYzM2MDE5OTE4ZWQxMjJmNWMwMWE4YmY2ZTQ3ZDBlOWU3ZWM0MWQ4OTUzNjc2NmZkNjI7cHNrZXk9.v.f30741.m3u8?t=5d7c4352&exper=0&us=9107197036615480952&sign=5ae58b045ffd20ffe11f29abca750fe1'
-
+    
     try:
         m3u8_url = sys.argv[1]
         file_name = sys.argv[2]
     except:
         pass
     
+    try:
+        fp = open("m3u8_url.txt", "rb")
+        m3u8_url = fp.read()
+        fp.close()
+        m3u8_url = bytes.decode(m3u8_url) 
+        m3u8_url = m3u8_url.strip('\r\n\t ')
+    except Exception as e:
+        print ("open m3u8_url.txt error:%s"%e)
     print ("m3u8 : %s"%m3u8_url)
     print ("filename : %s"%file_name)
     
