@@ -14,10 +14,19 @@ g_download_queue = Queue()
 #pattern = re.compile(r'^(([a-zA-Z]+)(:\/\/))(.*\.mp4$|.*\.flv$|.*\.f4v$|.*\.m2ts$|.*\.m4r$|.*\.m4v$|.*\.wmv$|.*\.m2ts$|.*\.avi$|.*\.rmvb$|.*\.rm$|.*\.asf$|.*\.divx$|.*\.mpg$|.*\.mpeg$|.*\.mpe$|.*\.mpe$|.*\.mkv$|.*\.vob$|.*\.hlv$)', re.M)
 
 
-def thread_fun():
-    log_name = "%s/request-%s.log"%(log_path, time.strftime("%Y%m%d%H%M%S", time.localtime()))
+def create_path(path):
     try:
-        request_url_log = open(log_name, "w")
+        os.mkdir(path)
+    except FileExistsError :
+        pass
+    except:
+        raise
+
+def thread_fun():
+    log_name = "%s/request-%s.log"%(log_path, time.strftime("%Y%m%d", time.localtime()))
+    try:
+        request_url_log = open(log_name, "a+")
+        request_url_log.write("%s\n"%time.strftime("%Y%m%d%H%M%S", time.localtime()))
     except Exception as e:
         print("req log Exception %s"%e)
     
@@ -55,7 +64,7 @@ def thread_fun():
                 old_file_list.append(filename)
                 #print ("----%s"%end[-1])
                 #request_url_log.write("%s\n"%response.headers.get("content-type"))
-                request_url_log.write("%s\n"%request_url)
+                request_url_log.write("[%s]%s\n"%(time.strftime("%Y%m%d%H%M%S", time.localtime()), request_url))
                 g_download_queue.put( request_url.split("range=")[0].rstrip("?&") )
                 #print ("---================================================thread %s"%request_url)
             if (time.time() - lasttime > 15):
@@ -68,9 +77,10 @@ def thread_fun():
 
 
 def thread_download():
-    log_name = "%s/download-%s.log"%(log_path, time.strftime("%Y%m%d%H%M%S", time.localtime()))
+    log_name = "%s/download-%s.log"%(log_path, time.strftime("%Y%m%d", time.localtime()))
     try:
-        download_log = open(log_name, "w")
+        download_log = open(log_name, "a+")
+        download_log.write("%s\n"%time.strftime("%Y%m%d%H%M%S", time.localtime()))
     except Exception as e:
         print("download log Exception %s"%e)
         
@@ -78,7 +88,8 @@ def thread_download():
         try:
             ret = g_download_queue.get()
             #print ("down load %s"%ret)
-            download_log.write("%s\n"%ret)
+            #download_log.write("%s\n"%time.strftime("%Y%m%d%H%M%S", time.localtime()))
+            download_log.write("[%s]%s\n"%(time.strftime("%Y%m%d%H%M%S", time.localtime()), ret))
             download_log.close()
             download_log = open(log_name, "a")
             
@@ -89,7 +100,10 @@ def thread_download():
         
         except Exception as e:
             print ("================================\n============thread_download----except %s"%e)
-        
+
+create_path(log_path)
+create_path(download_path)
+
 thread1 = threading.Thread(target=thread_fun,args=())
 thread1.setDaemon(True)
 thread1.start()

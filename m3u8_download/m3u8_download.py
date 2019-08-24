@@ -130,7 +130,7 @@ class DownLoad_M3U8(object):
                 os.remove(ts_name)
                 os.rename(ts_out, ts_name)
         except Exception as e:
-            print (e)
+            print ("download error:%s"%e)
         
     def download_all_ts(self):
         '''ts_urls = self.get_ts_url()
