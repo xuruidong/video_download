@@ -77,6 +77,7 @@ class DownLoad_M3U8(object):
         #print (m3u8_obj.keys)
         #print (m3u8_obj.segments)
         #print (m3u8_obj.data)
+        print ("totals %d"%len(m3u8_obj.data["segments"]))
         '''
         f = open("data.json", "wb")
         f.write(json.dumps(m3u8_obj.data).encode())
@@ -144,10 +145,11 @@ class DownLoad_M3U8(object):
             if (os.path.exists(save_name)):
                 print ("%s exist"%save_name)
                 continue
-            #print (index)
+            print ("%d\r"%(index+1), end='')
             #self.threadpool.submit(self.download_single_ts2,[ts_seg,f'{index}.ts'])
             self.threadpool.submit(self.download_single_ts2,[ts_seg, save_name])
-            pass        
+            pass  
+        print ("\n")
         self.threadpool.shutdown()
 
     def run(self):
