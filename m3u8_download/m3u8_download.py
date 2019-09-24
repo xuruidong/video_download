@@ -55,6 +55,7 @@ class DownLoad_M3U8(object):
         self.key = None
         self.iv = None      
         self.save_path = "downloaded/"
+        self.total_segments = 0
         try:
             os.mkdir(self.save_path)
         except FileExistsError :
@@ -78,6 +79,7 @@ class DownLoad_M3U8(object):
         #print (m3u8_obj.segments)
         #print (m3u8_obj.data)
         print ("totals %d"%len(m3u8_obj.data["segments"]))
+        self.total_segments = len(m3u8_obj.data["segments"])
         '''
         f = open("data.json", "wb")
         f.write(json.dumps(m3u8_obj.data).encode())
@@ -143,9 +145,15 @@ class DownLoad_M3U8(object):
         for index,ts_seg in enumerate(ts_segs):
             save_name = "%s/%d.ts"%(self.save_path, index)
             if (os.path.exists(save_name)):
-                print ("%s exist"%save_name)
+                #print ("%s exist"%save_name)
                 continue
-            print ("%d\r"%(index+1), end='')
+            while (self.threadpool._work_queue.qsize() > 1):
+                time.sleep(1)
+            #print ("%d\r"%(index+1), end='')
+            n1 = int((index+1)*50/self.total_segments)
+            n2 = 50-n1
+            
+            print ("%s%s|%f%%\r"%("#"*n1, " "*n2, (index+1)*100/self.total_segments), end='')            
             #self.threadpool.submit(self.download_single_ts2,[ts_seg,f'{index}.ts'])
             self.threadpool.submit(self.download_single_ts2,[ts_seg, save_name])
             pass  
@@ -153,7 +161,9 @@ class DownLoad_M3U8(object):
         self.threadpool.shutdown()
 
     def run(self):
+        print ("downloading...")
         self.download_all_ts()
+        print ("merging...")
         ts_path = '%s/*.ts'%self.save_path
         with open(self.file_name,'wb') as fn:
             for ts in natsorted(iglob(ts_path)):
