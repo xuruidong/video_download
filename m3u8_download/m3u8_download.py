@@ -3,6 +3,7 @@ import os,sys
 import time
 import m3u8
 import requests
+import re
 from glob import iglob
 from natsort import natsorted
 from urllib.parse import urljoin
@@ -32,6 +33,14 @@ def hexstr2bytes(hex_str):
     
     return bytes(n_list)
 
+def valid_url(url):
+    pattern=re.match(r'(http|ftp|https):\/\/[\w\-_]+(\.[\w\-_]+)+([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?',url,re.IGNORECASE)
+    if pattern:
+        return True
+    
+    return False
+    
+        
 @dataclass
 class DownLoad_M3U8(object):
     m3u8_url  : str
@@ -47,8 +56,8 @@ class DownLoad_M3U8(object):
         #print (args)
     '''
     def __post_init__(self):
-        self.headers   = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36',}
-        self.threadpool = ThreadPoolExecutor(max_workers=3)
+        self.headers   = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.100 Safari/537.36',}
+        self.threadpool = ThreadPoolExecutor(max_workers=10)
         if not self.file_name:
             self.file_name = 'new.mp4'
         self.base_url = None
@@ -63,17 +72,9 @@ class DownLoad_M3U8(object):
         except:
             raise
 
-    def get_ts_url(self):
-        m3u8_obj = m3u8.load(self.m3u8_url)
-        base_uri = m3u8_obj.base_uri
-        print (dir(m3u8_obj) )
-        print (m3u8_obj.data)
-        print (m3u8_obj.keys)
-        for seg in m3u8_obj.segments:
-            yield urljoin(base_uri,seg.uri)
     
     def get_ts_segment(self):
-        m3u8_obj = m3u8.load(self.m3u8_url)
+        m3u8_obj = m3u8.load(self.m3u8_url, timeout=10)
         self.base_uri = m3u8_obj.base_uri
         #print (m3u8_obj.keys)
         #print (m3u8_obj.segments)
@@ -88,18 +89,11 @@ class DownLoad_M3U8(object):
         for seg in m3u8_obj.data["segments"]:
             yield seg       
     
-        
-    def download_single_ts(self,urlinfo):
-        url,ts_name = urlinfo
-        res = requests.get(url,headers = self.headers)
-        with open(ts_name,'wb') as fp:
-            fp.write(res.content)
-
     def download_single_ts2(self, ts_info):
         try:
             seg,ts_name = ts_info
             url = urljoin(self.base_uri,seg["uri"])
-            res = requests.get(url,headers = self.headers)
+            res = requests.get(url,headers = self.headers, timeout=5)
             with open(ts_name,'wb') as fp:
                 fp.write(res.content)
             
@@ -108,11 +102,16 @@ class DownLoad_M3U8(object):
             if ("key" in seg.keys()):
                 method = seg["key"]["method"]   # "AES-128"
                 key_uri = seg["key"]["uri"]
-                iv = seg["key"]["iv"]           # "0x00000000000000000000000000000000"
+                iv = None
+                if ("iv" in seg["key"].keys()):
+                    iv = seg["key"]["iv"]           # "0x00000000000000000000000000000000"
                 
-                # iv proc
-                iv = hexstr2bytes(iv)
+                    # iv proc
+                    iv = hexstr2bytes(iv)
                 
+                if (valid_url(key_uri) == False):
+                    key_uri = urljoin(self.base_uri, key_uri)
+                    
                 #print (iv)
                 res = requests.get(key_uri, headers=self.headers)
                 key = res.content
@@ -133,16 +132,17 @@ class DownLoad_M3U8(object):
                 os.remove(ts_name)
                 os.rename(ts_out, ts_name)
         except Exception as e:
-            print ("download error:%s"%e)
+            print ("download_single_ts2 download %s error:%s"%(ts_name,e))
+            time.sleep(10)
         
     def download_all_ts(self):
-        '''ts_urls = self.get_ts_url()
-        for index,ts_url in enumerate(ts_urls):
-            print (ts_url)
-            self.threadpool.submit(self.download_single_ts,[ts_url,f'{index}.ts'])
-            '''
         ts_segs = self.get_ts_segment()
         for index,ts_seg in enumerate(ts_segs):
+            n1 = int((index+1)*50/self.total_segments)
+            n2 = 50-n1
+            
+            print ("%s%s| %f%%\r"%("#"*n1, " "*n2, (index+1)*100/self.total_segments), end='')
+            
             save_name = "%s/%d.ts"%(self.save_path, index)
             if (os.path.exists(save_name)):
                 #print ("%s exist"%save_name)
@@ -150,12 +150,11 @@ class DownLoad_M3U8(object):
             while (self.threadpool._work_queue.qsize() > 1):
                 time.sleep(1)
             #print ("%d\r"%(index+1), end='')
-            n1 = int((index+1)*50/self.total_segments)
-            n2 = 50-n1
             
-            print ("%s%s|%f%%\r"%("#"*n1, " "*n2, (index+1)*100/self.total_segments), end='')            
-            #self.threadpool.submit(self.download_single_ts2,[ts_seg,f'{index}.ts'])
             self.threadpool.submit(self.download_single_ts2,[ts_seg, save_name])
+            #print ("\n")
+            #print (json.dumps(ts_seg))
+            #break
             pass  
         print ("\n")
         self.threadpool.shutdown()
