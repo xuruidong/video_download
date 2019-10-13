@@ -141,7 +141,7 @@ class DownLoad_M3U8(object):
             n1 = int((index+1)*50/self.total_segments)
             n2 = 50-n1
             
-            print ("%s%s| %f%%\r"%("#"*n1, " "*n2, (index+1)*100/self.total_segments), end='')
+            print ("├%s%s┤ %f%%\r"%("#"*n1, " "*n2, (index+1)*100/self.total_segments), end='')
             
             save_name = "%s/%d.ts"%(self.save_path, index)
             if (os.path.exists(save_name)):
