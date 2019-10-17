@@ -32,14 +32,14 @@ def hexstr2bytes(hex_str):
         n_list.append(n)
     
     return bytes(n_list)
-
+'''
 def valid_url(url):
     pattern=re.match(r'(http|ftp|https):\/\/[\w\-_]+(\.[\w\-_]+)+([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?',url,re.IGNORECASE)
     if pattern:
         return True
     
     return False
-    
+'''    
         
 @dataclass
 class DownLoad_M3U8(object):
@@ -57,12 +57,13 @@ class DownLoad_M3U8(object):
     '''
     def __post_init__(self):
         self.headers   = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.100 Safari/537.36',}
-        self.threadpool = ThreadPoolExecutor(max_workers=10)
+        self.threadpool = ThreadPoolExecutor(max_workers=3)
         if not self.file_name:
             self.file_name = 'new.mp4'
         self.base_url = None
         self.key = None
-        self.iv = None      
+        self.iv = None  
+        self.key_uri = None
         self.save_path = "downloaded/"
         self.total_segments = 0
         try:
@@ -72,7 +73,26 @@ class DownLoad_M3U8(object):
         except:
             raise
 
-    
+    def get_first_key(self, seg):
+        if ("key" in seg.keys()):
+            key_uri_src = seg["key"]["uri"]
+            key_uri = urljoin(self.base_uri, key_uri_src)
+                
+            try:
+                res = requests.get(key_uri, headers=self.headers)
+            except Exception as e:
+                print ("get key error: url=%s, %s, get_key %s"%(key_uri,e, ts_name))  
+                return None
+            
+            key = res.content
+            if (len(key) > 100):
+                print ("key len > 100,")
+                return None
+            self.key = key
+            self.key_uri = key_uri_src
+        
+        return self.key
+            
     def get_ts_segment(self):
         m3u8_obj = m3u8.load(self.m3u8_url, timeout=10)
         self.base_uri = m3u8_obj.base_uri
@@ -86,12 +106,39 @@ class DownLoad_M3U8(object):
         f.write(json.dumps(m3u8_obj.data).encode())
         f.close()
         '''
+        self.get_first_key(m3u8_obj.data["segments"][0])
         for seg in m3u8_obj.data["segments"]:
             yield seg       
     
     def download_single_ts2(self, ts_info):
         try:
             seg,ts_name = ts_info
+            #download key
+            if ("key" in seg.keys()):
+                key_uri_src = seg["key"]["uri"]
+                if (key_uri_src == self.key_uri):
+                    key = self.key
+                else:
+                    print ("debug: get key from ")
+                    
+                    #if (valid_url(key_uri_src) == False):
+                    #    key_uri = urljoin(self.base_uri, key_uri_src)
+                    key_uri = urljoin(self.base_uri, key_uri_src)
+                        
+                    try:
+                        res = requests.get(key_uri, headers=self.headers)
+                    except Exception as e:
+                        print ("get key error: url=%s, %s, get_key %s"%(key_uri,e, ts_name))  
+                        return
+                    
+                    key = res.content
+                    if (len(key) > 100):
+                        print ("key len > 100,")
+                        return
+                    self.key = key
+                    #self.key_uri = key_uri_src
+            
+            #download ts
             url = urljoin(self.base_uri,seg["uri"])
             res = requests.get(url,headers = self.headers, timeout=5)
             with open(ts_name,'wb') as fp:
@@ -101,7 +148,7 @@ class DownLoad_M3U8(object):
             #decrypt
             if ("key" in seg.keys()):
                 method = seg["key"]["method"]   # "AES-128"
-                key_uri = seg["key"]["uri"]
+                
                 iv = None
                 if ("iv" in seg["key"].keys()):
                     iv = seg["key"]["iv"]           # "0x00000000000000000000000000000000"
@@ -109,14 +156,8 @@ class DownLoad_M3U8(object):
                     # iv proc
                     iv = hexstr2bytes(iv)
                 
-                if (valid_url(key_uri) == False):
-                    key_uri = urljoin(self.base_uri, key_uri)
-                    
-                #print (iv)
-                res = requests.get(key_uri, headers=self.headers)
-                key = res.content
+                
                 self.iv = iv
-                self.key = key
                 
             
                 ts_file = open(ts_name, "rb")
@@ -133,6 +174,10 @@ class DownLoad_M3U8(object):
                 os.rename(ts_out, ts_name)
         except Exception as e:
             print ("download_single_ts2 download %s error:%s"%(ts_name,e))
+            try:
+                print ("key=%s,==="%key)
+            except:
+                pass
             time.sleep(10)
         
     def download_all_ts(self):
@@ -141,7 +186,7 @@ class DownLoad_M3U8(object):
             n1 = int((index+1)*50/self.total_segments)
             n2 = 50-n1
             
-            print ("├%s%s┤ %f%%\r"%("#"*n1, " "*n2, (index+1)*100/self.total_segments), end='')
+            print ("\r├%s%s┤ %f%%"%("#"*n1, " "*n2, (index+1)*100/self.total_segments), end='')
             
             save_name = "%s/%d.ts"%(self.save_path, index)
             if (os.path.exists(save_name)):
