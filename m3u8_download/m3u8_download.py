@@ -9,7 +9,7 @@ from natsort import natsorted
 from urllib.parse import urljoin
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor
-from aes_encrypt import *
+from . aes_encrypt import *
 
 import json
 
@@ -59,12 +59,12 @@ class DownLoad_M3U8(object):
         self.headers   = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.100 Safari/537.36',}
         self.threadpool = ThreadPoolExecutor(max_workers=3)
         if not self.file_name:
-            self.file_name = 'new.mp4'
+            self.file_name = 'm3u8new.mp4'
         self.base_url = None
         self.key = None
         self.iv = None  
         self.key_uri = None
-        self.save_path = "downloaded/"
+        self.save_path = "m3u8downloaded/"
         self.total_segments = 0
         try:
             os.mkdir(self.save_path)

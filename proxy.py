@@ -1,18 +1,21 @@
 # -*- coding:utf-8 -*-
+import sys
 from mitmproxy import ctx
 import threading
 import time
 from queue import Queue
-#import re
 from aria2_download import *
+from m3u8_download import m3u8_download
+
 
 log_path="./log"
 download_path = "./download/"
 
+#print ("===%s"%dir(m3u8_download))
+#m3u8_download.DownLoad_M3U8("http://www.baidu.com", "m3u8_download.mp4")
+
 g_queue = Queue()
 g_download_queue = Queue()
-#pattern = re.compile(r'^(([a-zA-Z]+)(:\/\/))(.*\.mp4$|.*\.flv$|.*\.f4v$|.*\.m2ts$|.*\.m4r$|.*\.m4v$|.*\.wmv$|.*\.m2ts$|.*\.avi$|.*\.rmvb$|.*\.rm$|.*\.asf$|.*\.divx$|.*\.mpg$|.*\.mpeg$|.*\.mpe$|.*\.mpe$|.*\.mkv$|.*\.vob$|.*\.hlv$)', re.M)
-
 
 def create_path(path):
     try:
@@ -26,6 +29,7 @@ def thread_fun():
     log_name = "%s/request-%s.log"%(log_path, time.strftime("%Y%m%d", time.localtime()))
     try:
         request_url_log = open(log_name, "a+")
+        request_url_log.write("--------------")
         request_url_log.write("%s\n"%time.strftime("%Y%m%d%H%M%S", time.localtime()))
     except Exception as e:
         print("req log Exception %s"%e)
@@ -35,10 +39,8 @@ def thread_fun():
     while True:
         try:
             ret = g_queue.get()
-            #time.sleep(3)
             response = ret.response
             if (response.status_code not in [200, 206]):
-                #print("======code=%d"%(response.status_code))
                 continue
             
             #print ("++++%s"%response.headers.get("content-type"))
@@ -51,6 +53,7 @@ def thread_fun():
             #print ("++++++++++++++++++++")
             
             request_url = ret.request.url
+            #print(request_url)
             tmp_list = request_url.split("?")
             #if (tmp_list[0].endwith() )
             end = tmp_list[0].split(".")
@@ -62,10 +65,14 @@ def thread_fun():
                     continue
                     #pass
                 old_file_list.append(filename)
-                #print ("----%s"%end[-1])
-                #request_url_log.write("%s\n"%response.headers.get("content-type"))
+                
                 request_url_log.write("[%s]%s\n"%(time.strftime("%Y%m%d%H%M%S", time.localtime()), request_url))
-                g_download_queue.put( request_url.split("range=")[0].rstrip("?&") )
+                tmp = {}
+                tmp["type"] = end[-1]
+                tmp["url"] = request_url
+                
+                #g_download_queue.put( request_url.split("range=")[0].rstrip("?&") )
+                g_download_queue.put(tmp)
                 #print ("---================================================thread %s"%request_url)
             if (time.time() - lasttime > 15):
                 lasttime = time.time() 
@@ -80,6 +87,7 @@ def thread_download():
     log_name = "%s/download-%s.log"%(log_path, time.strftime("%Y%m%d", time.localtime()))
     try:
         download_log = open(log_name, "a+")
+        download_log.write("--------------")
         download_log.write("%s\n"%time.strftime("%Y%m%d%H%M%S", time.localtime()))
     except Exception as e:
         print("download log Exception %s"%e)
@@ -93,10 +101,20 @@ def thread_download():
             download_log.close()
             download_log = open(log_name, "a")
             
-            tmp1 = ret.split("?")[0]
+            req_url = ret["url"]
+            tmp1 = req_url.split("?")[0]
             tmp2 = tmp1.split("/")
             filename = tmp2[-1]
-            get_file_from_url(ret, "%s/%s-%s"%(download_path, time.strftime("%Y%m%d%H%M%S", time.localtime()), filename))
+            
+            if (ret["type"] == "m3u8"):
+                if ("f30741" in filename):
+                    pass
+                m3u8 = m3u8_download.DownLoad_M3U8(req_url, "m3u8_download.mp4")
+                m3u8.run()
+                sys.exit(0)
+            else:
+                url = ret["url"].split("range=")[0].rstrip("?&")
+                get_file_from_url(url, "%s/%s-%s"%(download_path, time.strftime("%Y%m%d%H%M%S", time.localtime()), filename))
         
         except Exception as e:
             print ("================================\n============thread_download----except %s"%e)
