@@ -9,7 +9,8 @@ from natsort import natsorted
 from urllib.parse import urljoin
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor
-from . aes_encrypt import *
+#from .aes_encrypt import *
+import aes_encrypt
 
 import json
 

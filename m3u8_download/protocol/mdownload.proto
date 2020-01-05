@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package protocol;
+service mDownload {
+  rpc addUri(requestData) returns (responseData){}
+}
+
+message requestData {
+  string url = 1;
+  string outdir = 2;
+}
+
+message responseData {
+	int32 code = 1;
+	string msg = 2;
+}
