@@ -5,7 +5,8 @@ import threading
 import time
 from queue import Queue
 from aria2_download import *
-from m3u8_download import m3u8_download
+#from m3u8_download import m3u8_download
+import m3u8dRPC
 
 
 log_path="./log"
@@ -108,10 +109,9 @@ def thread_download():
             
             if (ret["type"] == "m3u8"):
                 if ("f30741" in filename):
-                    pass
-                m3u8 = m3u8_download.DownLoad_M3U8(req_url, "m3u8_download.mp4")
-                m3u8.run()
-                sys.exit(0)
+                    m3u8dRPC.get_file_from_url(req_url, "unused")
+                
+                print("download m3u8: %s"%req_url)
             else:
                 url = ret["url"].split("range=")[0].rstrip("?&")
                 get_file_from_url(url, "%s/%s-%s"%(download_path, time.strftime("%Y%m%d%H%M%S", time.localtime()), filename))
