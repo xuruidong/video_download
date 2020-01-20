@@ -27,7 +27,6 @@ class mDownload(mdownload_pb2_grpc.mDownloadServicer):
     def thread_handle(self):
         while True:
             try:
-                print("ddddd")
                 task = self.task_queue.get()
                 uri_str = task["uri"]
                 
@@ -55,7 +54,7 @@ def serve(host, port):
     mdownload_pb2_grpc.add_mDownloadServicer_to_server(mDownload(), grpcServer)
     grpcServer.add_insecure_port("%s:%d"%(host, port))
     grpcServer.start()
-    print("poookkks")
+    print("listen on %s:%d"%(host, port))
     try:
         while True:
             time.sleep(60)
