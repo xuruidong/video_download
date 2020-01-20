@@ -47,15 +47,7 @@ class DownLoad_M3U8(object):
     m3u8_url  : str
     file_name : str
     #base_uri  : str
-    '''
-    def __init__(self, *args, **kwargs):
-        self.base_url = None
-        self.key = None
-        self.iv = None
-        self.m3u8_url = args[0]
-        self.file_name = args[1]
-        #print (args)
-    '''
+    
     def __post_init__(self):
         self.headers   = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.100 Safari/537.36',}
         self.threadpool = ThreadPoolExecutor(max_workers=3)
@@ -67,6 +59,8 @@ class DownLoad_M3U8(object):
         self.key_uri = None
         self.save_path = "m3u8downloaded/"
         self.total_segments = 0
+        self.failed_count = 0
+        
         try:
             os.mkdir(self.save_path)
         except FileExistsError :
@@ -95,6 +89,7 @@ class DownLoad_M3U8(object):
         return self.key
             
     def get_ts_segment(self):
+        print ("m3u8.load")
         m3u8_obj = m3u8.load(self.m3u8_url, timeout=10)
         self.base_uri = m3u8_obj.base_uri
         #print (m3u8_obj.keys)
@@ -175,35 +170,42 @@ class DownLoad_M3U8(object):
                 os.rename(ts_out, ts_name)
         except Exception as e:
             print ("download_single_ts2 download %s error:%s"%(ts_name,e))
-            try:
-                print ("key=%s,==="%key)
-            except:
-                pass
+            self.failed_count += 1
             time.sleep(10)
         
     def download_all_ts(self):
-        ts_segs = self.get_ts_segment()
-        for index,ts_seg in enumerate(ts_segs):
-            n1 = int((index+1)*50/self.total_segments)
-            n2 = 50-n1
+        for i in range(0, 3):
+            print ("i=%d"%i)
+            ts_segs = self.get_ts_segment()
+            self.failed_count = 0
+            for index,ts_seg in enumerate(ts_segs):
+                n1 = int((index+1)*50/self.total_segments)
+                n2 = 50-n1
+                
+                print ("\r├%s%s┤ %f%%"%("#"*n1, " "*n2, (index+1)*100/self.total_segments), end='')
+                
+                save_name = "%s/%d.ts"%(self.save_path, index)
+                if (os.path.exists(save_name)):
+                    #print ("%s exist"%save_name)
+                    continue
+                while (self.threadpool._work_queue.qsize() > 1):
+                    time.sleep(1)
+                #print ("%d\r"%(index+1), end='')
+                
+                self.threadpool.submit(self.download_single_ts2,[ts_seg, save_name])
+                #print ("\n")
+                #print (json.dumps(ts_seg))
+                #break
+                pass  
+            print ("\n")
+        
+            if (self.failed_count == 0):
+                break
+            print("%d failed, try next time!"%(self.failed_count))
             
-            print ("\r├%s%s┤ %f%%"%("#"*n1, " "*n2, (index+1)*100/self.total_segments), end='')
-            
-            save_name = "%s/%d.ts"%(self.save_path, index)
-            if (os.path.exists(save_name)):
-                #print ("%s exist"%save_name)
-                continue
-            while (self.threadpool._work_queue.qsize() > 1):
-                time.sleep(1)
-            #print ("%d\r"%(index+1), end='')
-            
-            self.threadpool.submit(self.download_single_ts2,[ts_seg, save_name])
-            #print ("\n")
-            #print (json.dumps(ts_seg))
-            #break
-            pass  
-        print ("\n")
         self.threadpool.shutdown()
+        if (self.failed_count > 0):
+            print ("Failed to download some segments, %d"%(self.failed_count))
 
     def run(self):
         print ("downloading...")

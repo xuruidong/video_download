@@ -108,8 +108,9 @@ def thread_download():
             filename = tmp2[-1]
             
             if (ret["type"] == "m3u8"):
-                if ("f30741" in filename):
-                    m3u8dRPC.get_file_from_url(req_url, "unused")
+                #if ("f30741" not in filename):
+                #    continue
+                m3u8dRPC.get_file_from_url(req_url, "unused")
                 
                 print("download m3u8: %s"%req_url)
             else:
