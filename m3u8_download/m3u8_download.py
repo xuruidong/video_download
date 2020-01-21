@@ -50,7 +50,7 @@ class DownLoad_M3U8(object):
     
     def __post_init__(self):
         self.headers   = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.100 Safari/537.36',}
-        self.threadpool = ThreadPoolExecutor(max_workers=3)
+        self.threadpool = ThreadPoolExecutor(max_workers=4)
         if not self.file_name:
             self.file_name = 'm3u8new.mp4'
         self.base_url = None
@@ -89,7 +89,6 @@ class DownLoad_M3U8(object):
         return self.key
             
     def get_ts_segment(self):
-        print ("m3u8.load")
         m3u8_obj = m3u8.load(self.m3u8_url, timeout=10)
         self.base_uri = m3u8_obj.base_uri
         #print (m3u8_obj.keys)
@@ -175,7 +174,6 @@ class DownLoad_M3U8(object):
         
     def download_all_ts(self):
         for i in range(0, 3):
-            print ("i=%d"%i)
             ts_segs = self.get_ts_segment()
             self.failed_count = 0
             for index,ts_seg in enumerate(ts_segs):
@@ -208,6 +206,7 @@ class DownLoad_M3U8(object):
             print ("Failed to download some segments, %d"%(self.failed_count))
 
     def run(self):
+        t_start = time.time()
         print ("downloading...")
         self.download_all_ts()
         print ("merging...")
@@ -220,6 +219,7 @@ class DownLoad_M3U8(object):
         for ts in iglob(ts_path):
             #os.remove(ts)
             pass
+        print ("download end. use %f seconds"%(time.time() - t_start))
 
 if __name__ == '__main__':
     m3u8_url = ''
