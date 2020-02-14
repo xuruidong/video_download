@@ -50,7 +50,7 @@ class DownLoad_M3U8(object):
     
     def __post_init__(self):
         self.headers   = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.100 Safari/537.36',}
-        self.threadpool = ThreadPoolExecutor(max_workers=4)
+        self.threadpool = ThreadPoolExecutor(max_workers=2)
         if not self.file_name:
             self.file_name = 'm3u8new.mp4'
         self.base_url = None
@@ -88,8 +88,8 @@ class DownLoad_M3U8(object):
         
         return self.key
             
-    def get_ts_segment(self):
-        m3u8_obj = m3u8.load(self.m3u8_url, timeout=10)
+    def get_ts_segment(self, m3u8_obj):
+        
         self.base_uri = m3u8_obj.base_uri
         #print (m3u8_obj.keys)
         #print (m3u8_obj.segments)
@@ -135,7 +135,7 @@ class DownLoad_M3U8(object):
             
             #download ts
             url = urljoin(self.base_uri,seg["uri"])
-            res = requests.get(url,headers = self.headers, timeout=5)
+            res = requests.get(url,headers = self.headers, timeout=4)
             with open(ts_name,'wb') as fp:
                 fp.write(res.content)
             
@@ -167,20 +167,32 @@ class DownLoad_M3U8(object):
                 
                 os.remove(ts_name)
                 os.rename(ts_out, ts_name)
-        except Exception as e:
-            print ("download_single_ts2 download %s error:%s"%(ts_name,e))
+        except requests.exceptions.ReadTimeout as e:
+            #print ("\ndownload_single_ts2 ReadTimeout :%s"%e)
             self.failed_count += 1
-            time.sleep(10)
+        except Exception as e:
+            print ("  download_single_ts2 download %s error:%s"%(ts_name,e))
+            self.failed_count += 1
+            time.sleep(2)
         
     def download_all_ts(self):
+        for i in range(0,3):
+            try:
+                m3u8_obj = m3u8.load(self.m3u8_url, timeout=3)
+            except Exception as e:
+                print ("get m3u8 info error: %s"%e)
+                if (i >= 2):
+                    raise
+                continue
+            break        
         for i in range(0, 3):
-            ts_segs = self.get_ts_segment()
+            ts_segs = self.get_ts_segment(m3u8_obj)
             self.failed_count = 0
             for index,ts_seg in enumerate(ts_segs):
                 n1 = int((index+1)*50/self.total_segments)
                 n2 = 50-n1
                 
-                print ("\r├%s%s┤ %f%%"%("#"*n1, " "*n2, (index+1)*100/self.total_segments), end='')
+                print ("\r├%s%s┤ %f%%  FAILED:%d"%("#"*n1, " "*n2, (index+1)*100/self.total_segments, self.failed_count), end='')
                 
                 save_name = "%s/%d.ts"%(self.save_path, index)
                 if (os.path.exists(save_name)):
