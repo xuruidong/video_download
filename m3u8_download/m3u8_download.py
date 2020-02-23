@@ -141,37 +141,46 @@ class DownLoad_M3U8(object):
             
             
             #decrypt
-            if ("key" in seg.keys()):
-                method = seg["key"]["method"]   # "AES-128"
+            try:
+                if ("key" in seg.keys()):
+                    method = seg["key"]["method"]   # "AES-128"
+                    
+                    iv = None
+                    if ("iv" in seg["key"].keys()):
+                        iv = seg["key"]["iv"]           # "0x00000000000000000000000000000000"
+                    
+                        # iv proc
+                        iv = hexstr2bytes(iv)
+                    
+                    
+                    self.iv = iv
+                    
                 
-                iv = None
-                if ("iv" in seg["key"].keys()):
-                    iv = seg["key"]["iv"]           # "0x00000000000000000000000000000000"
-                
-                    # iv proc
-                    iv = hexstr2bytes(iv)
-                
-                
-                self.iv = iv
-                
-            
-                ts_file = open(ts_name, "rb")
-                data = ts_file.read()
-                ts_file.close() 
-                
-                decrypt_data = aes_encrypt.decrypt(data, key, iv)
-                ts_out = "%s-decrypt"%(ts_name)
-                out_file = open(ts_out, "wb")
-                out_file.write(decrypt_data)
-                out_file.close() 
-                
-                os.remove(ts_name)
-                os.rename(ts_out, ts_name)
+                    ts_file = open(ts_name, "rb")
+                    data = ts_file.read()
+                    ts_file.close() 
+                    
+                    decrypt_data = aes_encrypt.decrypt(data, key, iv)
+                    ts_out = "%s-decrypt"%(ts_name)
+                    out_file = open(ts_out, "wb")
+                    out_file.write(decrypt_data)
+                    out_file.close() 
+                    
+                    os.remove(ts_name)
+                    os.rename(ts_out, ts_name)
+                except Exception as e:
+                    print ("\ndownload_single_ts2 decrypt :%s"%e)
+                    os.remove(ts_name)
+                    self.failed_count += 1
         except requests.exceptions.ReadTimeout as e:
             #print ("\ndownload_single_ts2 ReadTimeout :%s"%e)
             self.failed_count += 1
+        except requests.exceptions.ConnectionError as e:
+            self.failed_count += 1
+            time.sleep(0.5)
         except Exception as e:
             print ("  download_single_ts2 download %s error:%s"%(ts_name,e))
+            print ("class name=%s"%(e.__class__.__name__))
             self.failed_count += 1
             time.sleep(2)
         
@@ -191,8 +200,10 @@ class DownLoad_M3U8(object):
             for index,ts_seg in enumerate(ts_segs):
                 n1 = int((index+1)*50/self.total_segments)
                 n2 = 50-n1
-                
-                print ("\r├%s%s┤ %f%%  FAILED:%d"%("#"*n1, " "*n2, (index+1)*100/self.total_segments, self.failed_count), end='')
+                f_perc = 0
+                if (index > 0):
+                    f_perc = self.failed_count*100/index
+                print ("\r├%s%s┤ %.2f%%  FAILED:%d(%.2f%%)"%("#"*n1, " "*n2, (index+1)*100/self.total_segments, self.failed_count, f_perc), end='')
                 
                 save_name = "%s/%d.ts"%(self.save_path, index)
                 if (os.path.exists(save_name)):
