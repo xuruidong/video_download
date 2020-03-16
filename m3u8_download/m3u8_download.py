@@ -6,11 +6,12 @@ import requests
 import re
 from glob import iglob
 from natsort import natsorted
-from urllib.parse import urljoin
+from urllib.parse import urljoin,urlparse
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor
 #from .aes_encrypt import *
 import aes_encrypt
+import subprocess
 
 import json
 
@@ -50,16 +51,18 @@ class DownLoad_M3U8(object):
     
     def __post_init__(self):
         self.headers   = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.100 Safari/537.36',}
-        self.threadpool = ThreadPoolExecutor(max_workers=2)
+        self.max_workers = 2
+        self.threadpool = ThreadPoolExecutor(max_workers=self.max_workers)
         if not self.file_name:
-            self.file_name = 'm3u8new.mp4'
+            self.file_name = 'm3u8new.ts'
         self.base_url = None
         self.key = None
         self.iv = None  
         self.key_uri = None
-        self.save_path = "m3u8downloaded/"
+        self.save_path = "%s-m3u8downloaded/"%(self.file_name)
         self.total_segments = 0
         self.failed_count = 0
+        self.success_count = 0
         
         try:
             os.mkdir(self.save_path)
@@ -71,15 +74,26 @@ class DownLoad_M3U8(object):
     def get_first_key(self, seg):
         if ("key" in seg.keys()):
             key_uri_src = seg["key"]["uri"]
-            key_uri = urljoin(self.base_uri, key_uri_src)
-                
-            try:
-                res = requests.get(key_uri, headers=self.headers)
-            except Exception as e:
-                print ("get key error: url=%s, %s, get_key %s"%(key_uri,e, ts_name))  
-                return None
             
-            key = res.content
+            if (os.path.isfile(self.base_uri)):
+                if(not os.path.isabs(key_uri_src)):
+                    key_uri = self.base_uri + key_uri_src
+                else:
+                    key_uri = key_uri_src
+                with open(key_uri, 'rb') as fp:
+                    key = fp.read()
+            else:           
+                key_uri = urljoin(self.base_uri, key_uri_src)
+                
+                try:
+                    res = requests.get(key_uri, headers=self.headers, timeout=3)
+                    print ("get first key :%s"%res.content)
+                except Exception as e:
+                    print ("get key error: url=%s, %s, get_key"%(key_uri,e)) 
+                    sys.exit(1)
+                    return None
+            
+                key = res.content
             if (len(key) > 100):
                 print ("key len > 100,")
                 return None
@@ -89,19 +103,11 @@ class DownLoad_M3U8(object):
         return self.key
             
     def get_ts_segment(self, m3u8_obj):
-        
-        self.base_uri = m3u8_obj.base_uri
-        #print (m3u8_obj.keys)
-        #print (m3u8_obj.segments)
-        #print (m3u8_obj.data)
-        print ("totals %d"%len(m3u8_obj.data["segments"]))
-        self.total_segments = len(m3u8_obj.data["segments"])
         '''
         f = open("data.json", "wb")
         f.write(json.dumps(m3u8_obj.data).encode())
         f.close()
         '''
-        self.get_first_key(m3u8_obj.data["segments"][0])
         for seg in m3u8_obj.data["segments"]:
             yield seg       
     
@@ -119,9 +125,11 @@ class DownLoad_M3U8(object):
                     #if (valid_url(key_uri_src) == False):
                     #    key_uri = urljoin(self.base_uri, key_uri_src)
                     key_uri = urljoin(self.base_uri, key_uri_src)
-                        
+                    print ("key_uri=%s"%key_uri) 
+                    print ("self.base_uri=%s"%self.base_uri)
                     try:
-                        res = requests.get(key_uri, headers=self.headers)
+                        res = requests.get(key_uri, headers=self.headers, timeout=3)
+                        print ("get key: %s"%res.content)
                     except Exception as e:
                         print ("get key error: url=%s, %s, get_key %s"%(key_uri,e, ts_name))  
                         return
@@ -168,10 +176,10 @@ class DownLoad_M3U8(object):
                     
                     os.remove(ts_name)
                     os.rename(ts_out, ts_name)
-                except Exception as e:
-                    print ("\ndownload_single_ts2 decrypt :%s"%e)
-                    os.remove(ts_name)
-                    self.failed_count += 1
+            except Exception as e:
+                print ("\ndownload_single_ts2 decrypt :%s"%e)
+                os.remove(ts_name)
+                self.failed_count += 1
         except requests.exceptions.ReadTimeout as e:
             #print ("\ndownload_single_ts2 ReadTimeout :%s"%e)
             self.failed_count += 1
@@ -183,48 +191,106 @@ class DownLoad_M3U8(object):
             print ("class name=%s"%(e.__class__.__name__))
             self.failed_count += 1
             time.sleep(2)
+    
+    def print_progress_old(self, index):
+        n1 = int((index+1)*50/self.total_segments)
+        n2 = 50-n1
+        f_perc = 0
+        if (index > 0):
+            f_perc = self.failed_count*100/index
+        print ("\r├%s%s┤ %.2f%%  FAILED:%d(%.2f%%)"%("#"*n1, " "*n2, (index+1)*100/self.total_segments, self.failed_count, f_perc), end='')
+    
+    def print_progress(self, count):
+        n1 = int(count*50/self.total_segments)
+        n2 = 50-n1
+        f_perc = 0
+        if (count > 0):
+            f_perc = self.failed_count*100/count
+        print ("\r├%s%s┤ %.2f%%  FAILED:%d(%.2f%%)"%("#"*n1, " "*n2, (count)*100/self.total_segments, self.failed_count, f_perc), end='')
         
     def download_all_ts(self):
         for i in range(0,3):
             try:
                 m3u8_obj = m3u8.load(self.m3u8_url, timeout=3)
+                m3u8_obj.dump("%s/tmp.m3u8"%self.save_path)
             except Exception as e:
                 print ("get m3u8 info error: %s"%e)
                 if (i >= 2):
                     raise
                 continue
-            break        
+            break 
+        
+        print ("totals %d"%len(m3u8_obj.data["segments"]))
+        self.base_uri = m3u8_obj.base_uri
+        #print (m3u8_obj.keys)
+        #print (m3u8_obj.segments)
+        #print (m3u8_obj.data)
+        
+        self.total_segments = len(m3u8_obj.data["segments"])    
+        self.get_first_key(m3u8_obj.data["segments"][0])
+        if (self.key == b''):
+            return []
+        
         for i in range(0, 3):
+            _count = 0
+            tmp_count = 0
+            last_features = [None for i in range(0, self.max_workers)]
             ts_segs = self.get_ts_segment(m3u8_obj)
             self.failed_count = 0
             for index,ts_seg in enumerate(ts_segs):
+                '''
                 n1 = int((index+1)*50/self.total_segments)
                 n2 = 50-n1
                 f_perc = 0
                 if (index > 0):
                     f_perc = self.failed_count*100/index
                 print ("\r├%s%s┤ %.2f%%  FAILED:%d(%.2f%%)"%("#"*n1, " "*n2, (index+1)*100/self.total_segments, self.failed_count, f_perc), end='')
-                
+                '''
                 save_name = "%s/%d.ts"%(self.save_path, index)
                 if (os.path.exists(save_name)):
                     #print ("%s exist"%save_name)
+                    _count += 1
+                    #self.print_progress(_count)
                     continue
-                while (self.threadpool._work_queue.qsize() > 1):
+                while (self.threadpool._work_queue.qsize() > 0):
                     time.sleep(1)
                 #print ("%d\r"%(index+1), end='')
+                tmp_count += 1
+                f = self.threadpool.submit(self.download_single_ts2,[ts_seg, save_name])
+                last_features[tmp_count%self.max_workers] = f
+                #if (index > self.max_workers):
+                #    self.print_progress(index-self.max_workers)
                 
-                self.threadpool.submit(self.download_single_ts2,[ts_seg, save_name])
-                #print ("\n")
-                #print (json.dumps(ts_seg))
-                #break
-                pass  
-            print ("\n")
-        
+                
+                if (tmp_count > self.max_workers + 1):
+                    _count += 1
+                    self.print_progress(_count)
+                #print ("add %d, qsize=%d\n"%(tmp_count, self.threadpool._work_queue.qsize()))
+                  
+            for i in range(15):
+                all_done = True
+                done_count = 0
+                for f in last_features:
+                    if (f != None):
+                        if (f.done()):
+                            done_count +=1
+                        else:
+                            all_done = False
+                            time.sleep(1)
+                            break
+                if (all_done):
+                    break
+            
+            self.print_progress(self.total_segments)
+            print ("")
+            print ("debug: all-%d,done-%d, i=%d,done_count=%d"%(self.total_segments, done_count+_count,i, done_count))
             if (self.failed_count == 0):
                 break
-            print("%d failed, try next time!"%(self.failed_count))
+            print("Failed to download %d segment(s), try next time!"%(self.failed_count))
             
         self.threadpool.shutdown()
+        
+        
         if (self.failed_count > 0):
             print ("Failed to download some segments, %d"%(self.failed_count))
 
@@ -234,19 +300,26 @@ class DownLoad_M3U8(object):
         self.download_all_ts()
         print ("merging...")
         ts_path = '%s/*.ts'%self.save_path
+        '''
         with open(self.file_name,'wb') as fn:
             for ts in natsorted(iglob(ts_path)):
                 with open(ts,'rb') as ft:
                     scline = ft.read()
                     fn.write(scline)
+        '''
+        with open('filelist.txt','wb') as fn:
+            for ts in natsorted(iglob(ts_path)):
+                fn.write(("file \'%s\'\n"%ts).encode())        
         for ts in iglob(ts_path):
             #os.remove(ts)
-            pass
+            break
+        subprocess.run('ffmpeg -f concat -i filelist.txt -c copy output.mp4')
         print ("download end. use %f seconds"%(time.time() - t_start))
 
 if __name__ == '__main__':
     m3u8_url = ''
     file_name = ''
+    m3u8_url_list = []
     
     try:
         m3u8_url = sys.argv[1]
@@ -255,20 +328,26 @@ if __name__ == '__main__':
         pass
     
     try:
-        fp = open("m3u8_url.txt", "rb")
-        m3u8_url = fp.read()
-        fp.close()
-        m3u8_url = bytes.decode(m3u8_url) 
-        m3u8_url = m3u8_url.strip('\r\n\t ')
+        with open("m3u8_url.txt", "rb") as fp:
+            while True:
+                u = fp.readline()
+                if (not u):
+                    break
+                m3u8_url = bytes.decode(u, encoding="gbk")
+                m3u8_url = m3u8_url.strip('\r\n\t ')
+                m3u8_url_list.append(m3u8_url)
+        
     except Exception as e:
         print ("open m3u8_url.txt error:%s"%e)
-    print ("m3u8 : %s"%m3u8_url)
-    print ("filename : %s"%file_name)
     
     start = time.time()
 
-    M3U8 = DownLoad_M3U8(m3u8_url,file_name)
-    M3U8.run()
+    for index,m3u8_item in enumerate(m3u8_url_list):
+        print ("\n==============================")
+        print ("download %s"%m3u8_item)
+        file_name = "m3u8new-%d.ts"%index
+        M3U8 = DownLoad_M3U8(m3u8_item,file_name)
+        M3U8.run()
 
     end = time.time()
     print ('use time %f'%(end - start))
