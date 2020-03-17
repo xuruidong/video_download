@@ -232,7 +232,9 @@ class DownLoad_M3U8(object):
             return []
         
         #save base_url and key
-        with open("%s/tmp.m3u8"%self.save_path, "wb") as f:
+        with open("%s/infomation.txt"%self.save_path, "wb") as f:
+            f.write(("url=%s\n"%(self.m3u8_url)).encode())
+            f.write(("segments=%d\n"%(self.total_segments)).encode())
             f.write(("base_uri=%s\n"%(m3u8_obj.base_uri)).encode())
             if(self.key):
                 f.write(("key=%s"%(self.key.hex())).encode())
