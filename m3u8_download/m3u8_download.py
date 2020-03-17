@@ -59,7 +59,7 @@ class DownLoad_M3U8(object):
         self.key = None
         self.iv = None  
         self.key_uri = None
-        self.save_path = "%s-m3u8downloaded/"%(self.file_name)
+        self.save_path = "%s-downloaded/"%(self.file_name)
         self.total_segments = 0
         self.failed_count = 0
         self.success_count = 0
@@ -321,7 +321,7 @@ class DownLoad_M3U8(object):
         for ts in iglob(ts_path):
             #os.remove(ts)
             break
-        subprocess.run('ffmpeg -f concat -safe 0 -i filelist.txt -c copy output-%s.mp4'%(self.save_path))
+        subprocess.run('ffmpeg -v 16 -y -f concat -safe 0 -i filelist.txt -c copy output-%s.mp4'%(self.file_name))
         print ("download end. use %f seconds"%(time.time() - t_start))
 
 if __name__ == '__main__':
@@ -353,7 +353,7 @@ if __name__ == '__main__':
     for index,m3u8_item in enumerate(m3u8_url_list):
         print ("\n==============================")
         print ("download %s"%m3u8_item)
-        file_name = "m3u8new-%d.ts"%index
+        file_name = "m3u8-%d"%index
         M3U8 = DownLoad_M3U8(m3u8_item,file_name)
         M3U8.run()
 
