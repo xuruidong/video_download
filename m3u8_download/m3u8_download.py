@@ -315,7 +315,7 @@ class DownLoad_M3U8(object):
                     scline = ft.read()
                     fn.write(scline)
         '''
-        with open('%s/filelist.txt'%(self.save_path),'wb') as fn:
+        with open('filelist.txt','wb') as fn:
             for ts in natsorted(iglob(ts_path)):
                 fn.write(("file \'%s\'\n"%ts).encode())        
         for ts in iglob(ts_path):
