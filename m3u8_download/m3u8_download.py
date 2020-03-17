@@ -321,7 +321,7 @@ class DownLoad_M3U8(object):
         for ts in iglob(ts_path):
             #os.remove(ts)
             break
-        subprocess.run('ffmpeg -f concat -safe 0 -i %s/filelist.txt -c copy output-%s.mp4'%(self.save_path, self.save_path))
+        subprocess.run('ffmpeg -f concat -safe 0 -i filelist.txt -c copy output-%s.mp4'%(self.save_path))
         print ("download end. use %f seconds"%(time.time() - t_start))
 
 if __name__ == '__main__':
