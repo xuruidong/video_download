@@ -51,7 +51,7 @@ class DownLoad_M3U8(object):
     
     def __post_init__(self):
         self.headers   = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.100 Safari/537.36',}
-        self.max_workers = 2
+        self.max_workers = 4
         self.threadpool = ThreadPoolExecutor(max_workers=self.max_workers)
         if not self.file_name:
             self.file_name = 'm3u8new.ts'
@@ -231,6 +231,12 @@ class DownLoad_M3U8(object):
         if (self.key == b''):
             return []
         
+        #save base_url and key
+        with open("%s/tmp.m3u8"%self.save_path, "wb") as f:
+            f.write(("base_uri=%s\n"%(m3u8_obj.base_uri)).encode())
+            if(self.key):
+                f.write(("key=%s"%(self.key.hex())).encode())
+        
         for i in range(0, 3):
             _count = 0
             tmp_count = 0
@@ -307,13 +313,13 @@ class DownLoad_M3U8(object):
                     scline = ft.read()
                     fn.write(scline)
         '''
-        with open('filelist.txt','wb') as fn:
+        with open('%s/filelist.txt'%(self.save_path),'wb') as fn:
             for ts in natsorted(iglob(ts_path)):
                 fn.write(("file \'%s\'\n"%ts).encode())        
         for ts in iglob(ts_path):
             #os.remove(ts)
             break
-        subprocess.run('ffmpeg -f concat -safe 0 -i filelist.txt -c copy output.mp4')
+        subprocess.run('ffmpeg -f concat -safe 0 -i %s/filelist.txt -c copy output-%s.mp4'%(self.save_path, self.save_path))
         print ("download end. use %f seconds"%(time.time() - t_start))
 
 if __name__ == '__main__':
