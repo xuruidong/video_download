@@ -7,7 +7,7 @@ import re
 from glob import iglob
 from natsort import natsorted
 from urllib.parse import urljoin,urlparse
-from dataclasses import dataclass
+#from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor
 #from .aes_encrypt import *
 import aes_encrypt
@@ -43,13 +43,14 @@ def valid_url(url):
     return False
 '''    
         
-@dataclass
+#@dataclass
 class DownLoad_M3U8(object):
-    m3u8_url  : str
-    file_name : str
-    #base_uri  : str
+    #m3u8_url  : str
+    #file_name : str
     
-    def __post_init__(self):
+    def __init__(self, m3u8_url, file_name = ""):
+        self.m3u8_url = m3u8_url
+        self.file_name = file_name
         self.headers   = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.100 Safari/537.36',}
         self.max_workers = 4
         self.threadpool = ThreadPoolExecutor(max_workers=self.max_workers)
@@ -87,7 +88,7 @@ class DownLoad_M3U8(object):
                 
                 try:
                     res = requests.get(key_uri, headers=self.headers, timeout=3)
-                    print ("get first key :%s"%res.content)
+                    #print ("get first key :%s"%res.content)
                 except Exception as e:
                     print ("get key error: url=%s, %s, get_key"%(key_uri,e)) 
                     sys.exit(1)
