@@ -36,7 +36,7 @@ def thread_fun():
         print("req log Exception %s"%e)
     
     lasttime = time.time()  
-    old_file_list = []
+    old_file_set = set()
     while True:
         try:
             ret = g_queue.get()
@@ -63,10 +63,10 @@ def thread_fun():
                 
                 #filename = tmp_list[0].split("/")[-1]
                 filename = tmp_list[0]
-                if (filename in old_file_list):
+                if (filename in old_file_set):
                     continue
                     #pass
-                old_file_list.append(filename)
+                old_file_set.add(filename)
                 
                 request_url_log.write("[%s]%s\n"%(time.strftime("%Y%m%d%H%M%S", time.localtime()), request_url))
                 tmp = {}
