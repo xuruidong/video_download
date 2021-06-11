@@ -15,6 +15,8 @@ import subprocess
 
 import json
 
+import logging
+
 def hexstr2bytes(hex_str):
     hex_dic = {"0":0, "1":1, "2":2, "3":3, 
                "4":4, "5":5, "6":6, "7":7, 
@@ -51,8 +53,9 @@ class DownLoad_M3U8(object):
     def __init__(self, m3u8_url, file_name = ""):
         self.m3u8_url = m3u8_url
         self.file_name = file_name
-        self.headers   = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.100 Safari/537.36',}
-        self.max_workers = 4
+        self.headers   = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.100 Safari/537.36',
+                          'accept-encoding': 'gzip, deflate, br'}
+        self.max_workers = 1
         self.threadpool = ThreadPoolExecutor(max_workers=self.max_workers)
         if not self.file_name:
             self.file_name = 'm3u8new.ts'
@@ -216,6 +219,7 @@ class DownLoad_M3U8(object):
                 m3u8_obj.dump("%s/tmp.m3u8"%self.save_path)
             except Exception as e:
                 print ("get m3u8 info error: %s"%e)
+                logging.exception("get m3u8 info error")
                 if (i >= 2):
                     raise
                 continue
