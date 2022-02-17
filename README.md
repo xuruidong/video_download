@@ -5,12 +5,26 @@
 
 The following dependencies are necessary:
 
-* **[Python](https://www.python.org/downloads/)**  3 or above
+* **[Python](https://www.python.org/downloads/)**  3.7
 * **[aria2](https://aria2.github.io/)** 
 
 ```
 # pip install requests
 # pip install pycryptodome
+
+Package      Version
+------------ ---------
+certifi      2021.10.8
+chardet      3.0.4
+idna         2.8
+iso8601      1.0.2
+m3u8         0.3.12
+natsort      6.0.0
+pip          19.0.3
+pycryptodome 3.8.2
+requests     2.22.0
+setuptools   40.8.0
+urllib3      1.25.11
 ```
 
 ## Getting Started
