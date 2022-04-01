@@ -15,6 +15,8 @@ import subprocess
 
 import json
 
+import logging
+
 def hexstr2bytes(hex_str):
     hex_dic = {"0":0, "1":1, "2":2, "3":3, 
                "4":4, "5":5, "6":6, "7":7, 
@@ -51,8 +53,12 @@ class DownLoad_M3U8(object):
     def __init__(self, m3u8_url, file_name = ""):
         self.m3u8_url = m3u8_url
         self.file_name = file_name
-        self.headers   = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.100 Safari/537.36',}
-        self.max_workers = 4
+        self.headers   = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.100 Safari/537.36',
+                          'accept-encoding': 'gzip, deflate, br',
+                          #'referer': 'https://vod.bunediy.com/share/hiAB0dgxRvsc3I04',
+                          #'accept-language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7'
+                          }
+        self.max_workers = 1
         self.threadpool = ThreadPoolExecutor(max_workers=self.max_workers)
         if not self.file_name:
             self.file_name = 'm3u8new.ts'
@@ -86,13 +92,16 @@ class DownLoad_M3U8(object):
             else:           
                 key_uri = urljoin(self.base_uri, key_uri_src)
                 
-                try:
-                    res = requests.get(key_uri, headers=self.headers, timeout=3)
-                    #print ("get first key :%s"%res.content)
-                except Exception as e:
-                    print ("get key error: url=%s, %s, get_key"%(key_uri,e)) 
-                    sys.exit(1)
-                    return None
+                for i in range(3):
+                    try:
+                        res = requests.get(key_uri, headers=self.headers, timeout=3)
+                        #print ("get first key :%s"%res.content)
+                    except Exception as e:
+                        print ("get key error: url=%s, %s, get_key"%(key_uri,e)) 
+                        # sys.exit(1)
+                        if i >= 2 :
+                            return None
+                        continue                        
             
                 key = res.content
             if (len(key) > 100):
@@ -130,7 +139,7 @@ class DownLoad_M3U8(object):
                     print ("self.base_uri=%s"%self.base_uri)
                     try:
                         res = requests.get(key_uri, headers=self.headers, timeout=3)
-                        print ("get key: %s"%res.content)
+                        print ("get key: %s\n"%res.content)
                     except Exception as e:
                         print ("get key error: url=%s, %s, get_key %s"%(key_uri,e, ts_name))  
                         return
@@ -140,7 +149,7 @@ class DownLoad_M3U8(object):
                         print ("key len > 100,")
                         return
                     self.key = key
-                    #self.key_uri = key_uri_src
+                    self.key_uri = key_uri_src
             
             #download ts
             url = urljoin(self.base_uri,seg["uri"])
@@ -212,10 +221,11 @@ class DownLoad_M3U8(object):
     def download_all_ts(self):
         for i in range(0,3):
             try:
-                m3u8_obj = m3u8.load(self.m3u8_url, timeout=3)
+                m3u8_obj = m3u8.load(self.m3u8_url, timeout=3, headers=self.headers)
                 m3u8_obj.dump("%s/tmp.m3u8"%self.save_path)
             except Exception as e:
                 print ("get m3u8 info error: %s"%e)
+                logging.exception("get m3u8 info error")
                 if (i >= 2):
                     raise
                 continue
@@ -298,7 +308,7 @@ class DownLoad_M3U8(object):
             print ("debug: all-%d,done-%d, i=%d,done_count=%d"%(self.total_segments, done_count+_count,i, done_count))
             if (self.failed_count == 0):
                 break
-            print("Failed to download %d segment(s), try next time!"%(self.failed_count))
+            print("Failed to download %d segment(s), try again!"%(self.failed_count))
             
         self.threadpool.shutdown()
         
@@ -310,7 +320,12 @@ class DownLoad_M3U8(object):
         t_start = time.time()
         print ("downloading...")
         self.download_all_ts()
+        if (os.path.exists("output-%s.mp4"%(self.file_name))):
+            print ('output-%s.mp4 is exists, pass'%(self.file_name))
+            return
+        
         print ("merging...")
+        
         ts_path = '%s/*.ts'%self.save_path
 
         file_num = 0
@@ -348,6 +363,8 @@ if __name__ == '__main__':
                 u = fp.readline()
                 if (not u):
                     break
+                if (u.startswith(b'#')):
+                    continue
                 m3u8_url = bytes.decode(u, encoding="gbk")
                 m3u8_url = m3u8_url.strip('\r\n\t ')
                 m3u8_url_list.append(m3u8_url)
