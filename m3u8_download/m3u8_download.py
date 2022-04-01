@@ -227,7 +227,10 @@ class DownLoad_M3U8(object):
         #print (m3u8_obj.segments)
         #print (m3u8_obj.data)
         
-        self.total_segments = len(m3u8_obj.data["segments"])    
+        self.total_segments = len(m3u8_obj.data["segments"]) 
+        if(self.total_segments == 0):
+            print("m3u8 segments len = 0")
+            return;
         self.get_first_key(m3u8_obj.data["segments"][0])
         if (self.key == b''):
             return []
@@ -309,12 +312,14 @@ class DownLoad_M3U8(object):
         self.download_all_ts()
         print ("merging...")
         ts_path = '%s/*.ts'%self.save_path
-        '''
+
+        file_num = 0
         with open(self.file_name,'wb') as fn:
             for ts in natsorted(iglob(ts_path)):
                 with open(ts,'rb') as ft:
                     scline = ft.read()
                     fn.write(scline)
+                    file_num += 1
         '''
         with open('filelist.txt','wb') as fn:
             for ts in natsorted(iglob(ts_path)):
@@ -323,7 +328,8 @@ class DownLoad_M3U8(object):
             #os.remove(ts)
             break
         subprocess.run('ffmpeg -v 16 -y -f concat -safe 0 -i filelist.txt -c copy output-%s.mp4'%(self.file_name))
-        print ("download end. use %f seconds"%(time.time() - t_start))
+        '''
+        print ("download %d file(s). use %f seconds"%(file_num, time.time() - t_start))
 
 if __name__ == '__main__':
     m3u8_url = ''

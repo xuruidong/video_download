@@ -11,6 +11,8 @@ import mdownload_pb2
 import mdownload_pb2_grpc
 import m3u8_download
 
+import logging
+
 def handler(sig, frame):
     print('Got signal: ', sig)
     
@@ -25,17 +27,21 @@ class mDownload(mdownload_pb2_grpc.mDownloadServicer):
         
     
     def thread_handle(self):
+        index = 0
         while True:
             try:
                 task = self.task_queue.get()
                 uri_str = task["uri"]
                 
-                M3U8 = m3u8_download.DownLoad_M3U8(uri_str,"new.ts")
+                fname = "m3u8-%d"%index
+                index += 1
+                M3U8 = m3u8_download.DownLoad_M3U8(uri_str, fname)
                 M3U8.run() 
                 
                 
             except Exception as e:
                 print ("thread_handle error: %s"%e)
+                logging.exception(e)
         
     
     def addUri(self, request, context):
