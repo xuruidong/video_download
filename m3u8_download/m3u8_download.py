@@ -66,7 +66,7 @@ class DownLoad_M3U8(object):
         self.key = None
         self.iv = None  
         self.key_uri = None
-        self.save_path = "%s-downloaded/"%(self.file_name)
+        self.save_path = "output/%s-d/"%(self.file_name)
         self.total_segments = 0
         self.failed_count = 0
         self.success_count = 0
@@ -124,6 +124,9 @@ class DownLoad_M3U8(object):
     def download_single_ts2(self, ts_info):
         try:
             seg,ts_name = ts_info
+            # print (seg)
+            # print (self.key_uri)
+            time.sleep(1)
             #download key
             if ("key" in seg.keys()):
                 key_uri_src = seg["key"]["uri"]
@@ -217,41 +220,67 @@ class DownLoad_M3U8(object):
         if (count > 0):
             f_perc = self.failed_count*100/count
         print ("\r├%s%s┤ %.2f%%  FAILED:%d(%.2f%%)"%("#"*n1, " "*n2, (count)*100/self.total_segments, self.failed_count, f_perc), end='')
+    
+    def dump_info(self):
+        content = {}
+        content["url"] = self.m3u8_url
+        content["segments"] = self.total_segments
+        content["base_uri"] = self.base_uri
+        content["key"] = self.key.hex()
+        content["key_uri"] = self.key_uri
         
-    def download_all_ts(self):
-        for i in range(0,3):
-            try:
-                m3u8_obj = m3u8.load(self.m3u8_url, timeout=3, headers=self.headers)
-                m3u8_obj.dump("%s/tmp.m3u8"%self.save_path)
-            except Exception as e:
-                print ("get m3u8 info error: %s"%e)
-                logging.exception("get m3u8 info error")
-                if (i >= 2):
-                    raise
-                continue
-            break 
-        
-        print ("totals %d"%len(m3u8_obj.data["segments"]))
-        self.base_uri = m3u8_obj.base_uri
-        #print (m3u8_obj.keys)
-        #print (m3u8_obj.segments)
-        #print (m3u8_obj.data)
-        
-        self.total_segments = len(m3u8_obj.data["segments"]) 
-        if(self.total_segments == 0):
-            print("m3u8 segments len = 0")
-            return;
-        self.get_first_key(m3u8_obj.data["segments"][0])
-        if (self.key == b''):
-            return []
-        
-        #save base_url and key
         with open("%s/infomation.txt"%self.save_path, "wb") as f:
-            f.write(("url=%s\n"%(self.m3u8_url)).encode())
-            f.write(("segments=%d\n"%(self.total_segments)).encode())
-            f.write(("base_uri=%s\n"%(m3u8_obj.base_uri)).encode())
-            if(self.key):
-                f.write(("key=%s"%(self.key.hex())).encode())
+            f.write(json.dumps(content).encode())
+    
+    def load_info(self):
+        try:
+            with open("%s/infomation.txt"%self.save_path, "rb") as f:
+                content = json.load(f)
+            self.total_segments = content["segments"]
+            self.base_uri = content["base_uri"]
+            self.key = bytes.fromhex(content["key"])
+            self.key_uri = content["key_uri"]
+        except Exception as e:
+            content = {}
+            # print (e)
+            # logging.exception(e)
+        return content
+            
+    def download_all_ts(self):
+        res = self.load_info()
+        if res:
+            print("read info from %s"%(self.save_path))
+            m3u8_obj = m3u8.load("%s/tmp.m3u8"%self.save_path)
+            print (res)
+        else:
+            for i in range(0,3):
+                try:
+                    m3u8_obj = m3u8.load(self.m3u8_url, timeout=3, headers=self.headers)
+                    m3u8_obj.dump("%s/tmp.m3u8"%self.save_path)
+                except Exception as e:
+                    print ("get m3u8 info error: %s"%e)
+                    logging.exception("get m3u8 info error")
+                    if (i >= 2):
+                        raise
+                    continue
+                break 
+            
+            print ("totals %d"%len(m3u8_obj.data["segments"]))
+            self.base_uri = m3u8_obj.base_uri
+            #print (m3u8_obj.keys)
+            #print (m3u8_obj.segments)
+            #print (m3u8_obj.data)
+            
+            self.total_segments = len(m3u8_obj.data["segments"]) 
+            if(self.total_segments == 0):
+                print("m3u8 segments len = 0")
+                return;
+            self.get_first_key(m3u8_obj.data["segments"][0])
+            if (self.key == b''):
+                return []
+            
+            #save base_url and key
+            self.dump_info()
         
         for i in range(0, 3):
             _count = 0
@@ -319,8 +348,9 @@ class DownLoad_M3U8(object):
     def run(self):
         t_start = time.time()
         print ("downloading...")
+        save_name = "output/%s.mp4"%(self.file_name)
         self.download_all_ts()
-        if (os.path.exists("output-%s.mp4"%(self.file_name))):
+        if (os.path.exists(save_name)):
             print ('output-%s.mp4 is exists, pass'%(self.file_name))
             return
         
@@ -329,7 +359,7 @@ class DownLoad_M3U8(object):
         ts_path = '%s/*.ts'%self.save_path
 
         file_num = 0
-        with open(self.file_name,'wb') as fn:
+        with open(save_name,'wb') as fn:
             for ts in natsorted(iglob(ts_path)):
                 with open(ts,'rb') as ft:
                     scline = ft.read()
