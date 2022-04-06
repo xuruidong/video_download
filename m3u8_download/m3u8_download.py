@@ -58,7 +58,7 @@ class DownLoad_M3U8(object):
                           #'referer': 'https://vod.bunediy.com/share/hiAB0dgxRvsc3I04',
                           #'accept-language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7'
                           }
-        self.max_workers = 1
+        self.max_workers = 5
         self.threadpool = ThreadPoolExecutor(max_workers=self.max_workers)
         if not self.file_name:
             self.file_name = 'm3u8new.ts'
@@ -72,7 +72,7 @@ class DownLoad_M3U8(object):
         self.success_count = 0
         
         try:
-            os.mkdir(self.save_path)
+            os.makedirs(self.save_path)
         except FileExistsError :
             pass
         except:
