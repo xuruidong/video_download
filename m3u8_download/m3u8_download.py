@@ -44,7 +44,30 @@ def valid_url(url):
     
     return False
 '''    
-        
+
+def merge(files, save_name):
+    '''
+    files:  output/*.ts
+    '''
+    file_num = 0
+    with open(save_name,'wb') as fn:
+        for ts in natsorted(iglob(files)):
+            with open(ts,'rb') as ft:
+                scline = ft.read()
+                fn.write(scline)
+                file_num += 1
+
+    '''
+    with open('filelist.txt','wb') as fn:
+        for ts in natsorted(iglob(ts_path)):
+            fn.write(("file \'%s\'\n"%ts).encode())        
+    for ts in iglob(ts_path):
+        #os.remove(ts)
+        break
+    subprocess.run('ffmpeg -v 16 -y -f concat -safe 0 -i filelist.txt -c copy output-%s.mp4'%(self.file_name))
+    '''
+    return file_num
+
 #@dataclass
 class DownLoad_M3U8(object):
     #m3u8_url  : str
@@ -358,22 +381,8 @@ class DownLoad_M3U8(object):
         
         ts_path = '%s/*.ts'%self.save_path
 
-        file_num = 0
-        with open(save_name,'wb') as fn:
-            for ts in natsorted(iglob(ts_path)):
-                with open(ts,'rb') as ft:
-                    scline = ft.read()
-                    fn.write(scline)
-                    file_num += 1
-        '''
-        with open('filelist.txt','wb') as fn:
-            for ts in natsorted(iglob(ts_path)):
-                fn.write(("file \'%s\'\n"%ts).encode())        
-        for ts in iglob(ts_path):
-            #os.remove(ts)
-            break
-        subprocess.run('ffmpeg -v 16 -y -f concat -safe 0 -i filelist.txt -c copy output-%s.mp4'%(self.file_name))
-        '''
+        file_num = merge(ts_path, save_name)
+
         print ("download %d file(s). use %f seconds"%(file_num, time.time() - t_start))
 
 if __name__ == '__main__':
