@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 #from .aes_encrypt import *
 import aes_encrypt
 import subprocess
+import queue
 
 import json
 
@@ -93,6 +94,7 @@ class DownLoad_M3U8(object):
         self.total_segments = 0
         self.failed_count = 0
         self.success_count = 0
+        self.progress_queue = queue.Queue()
         
         try:
             os.makedirs(self.save_path)
@@ -120,7 +122,8 @@ class DownLoad_M3U8(object):
                         res = requests.get(key_uri, headers=self.headers, timeout=3)
                         #print ("get first key :%s"%res.content)
                     except Exception as e:
-                        print ("get key error: url=%s, %s, get_key"%(key_uri,e)) 
+                        print ("[get_first_key:125]get key error: url=%s, %s, get_key" % (
+                            key_uri, e))
                         # sys.exit(1)
                         if i >= 2 :
                             return None
@@ -149,7 +152,7 @@ class DownLoad_M3U8(object):
             seg,ts_name = ts_info
             # print (seg)
             # print (self.key_uri)
-            time.sleep(1)
+            # time.sleep(1)   ??????
             #download key
             if ("key" in seg.keys()):
                 key_uri_src = seg["key"]["uri"]
@@ -167,19 +170,21 @@ class DownLoad_M3U8(object):
                         res = requests.get(key_uri, headers=self.headers, timeout=3)
                         print ("get key: %s\n"%res.content)
                     except Exception as e:
-                        print ("get key error: url=%s, %s, get_key %s"%(key_uri,e, ts_name))  
+                        print ("get key error: url=%s, %s, get_key %s"%(key_uri,e, ts_name)) 
+                        self.progress_queue.put(1)
                         return
                     
                     key = res.content
                     if (len(key) > 100):
                         print ("key len > 100,")
+                        self.progress_queue.put(1)
                         return
                     self.key = key
                     self.key_uri = key_uri_src
             
             #download ts
             url = urljoin(self.base_uri,seg["uri"])
-            res = requests.get(url,headers = self.headers, timeout=4)
+            res = requests.get(url, headers=self.headers, timeout=3)
             with open(ts_name,'wb') as fp:
                 fp.write(res.content)
             
@@ -196,10 +201,8 @@ class DownLoad_M3U8(object):
                         # iv proc
                         iv = hexstr2bytes(iv)
                     
-                    
                     self.iv = iv
-                    
-                
+
                     ts_file = open(ts_name, "rb")
                     data = ts_file.read()
                     ts_file.close() 
@@ -226,7 +229,9 @@ class DownLoad_M3U8(object):
             print ("  download_single_ts2 download %s error:%s"%(ts_name,e))
             print ("class name=%s"%(e.__class__.__name__))
             self.failed_count += 1
-            time.sleep(2)
+            time.sleep(0.5)
+            
+        self.progress_queue.put(1)
     
     def print_progress_old(self, index):
         n1 = int((index+1)*50/self.total_segments)
@@ -274,7 +279,7 @@ class DownLoad_M3U8(object):
         if res:
             print("read info from %s"%(self.save_path))
             m3u8_obj = m3u8.load("%s/tmp.m3u8"%self.save_path)
-            print (res)
+            # print (res)
         else:
             for i in range(0,3):
                 try:
@@ -299,7 +304,7 @@ class DownLoad_M3U8(object):
                 print("m3u8 segments len = 0")
                 return;
             self.get_first_key(m3u8_obj.data["segments"][0])
-            if (self.key == b''):
+            if (not self.key or self.key == b''):
                 return []
             
             #save base_url and key
@@ -308,56 +313,42 @@ class DownLoad_M3U8(object):
         for i in range(0, 3):
             _count = 0
             tmp_count = 0
-            last_features = [None for i in range(0, self.max_workers)]
+            if(self.progress_queue.qsize() > 0):
+                print("self.progress_queue is not empty!")
+                while (self.progress_queue.qsize() > 0):
+                    item = self.progress_queue.get()
+            
             ts_segs = self.get_ts_segment(m3u8_obj)
             self.failed_count = 0
             for index,ts_seg in enumerate(ts_segs):
-                '''
-                n1 = int((index+1)*50/self.total_segments)
-                n2 = 50-n1
-                f_perc = 0
-                if (index > 0):
-                    f_perc = self.failed_count*100/index
-                print ("\r├%s%s┤ %.2f%%  FAILED:%d(%.2f%%)"%("#"*n1, " "*n2, (index+1)*100/self.total_segments, self.failed_count, f_perc), end='')
-                '''
                 save_name = "%s/%d.ts"%(self.save_path, index)
                 if (os.path.exists(save_name)):
-                    #print ("%s exist"%save_name)
                     _count += 1
-                    #self.print_progress(_count)
                     continue
                 while (self.threadpool._work_queue.qsize() > 0):
                     time.sleep(1)
                 #print ("%d\r"%(index+1), end='')
                 tmp_count += 1
                 f = self.threadpool.submit(self.download_single_ts2,[ts_seg, save_name])
-                last_features[tmp_count%self.max_workers] = f
-                #if (index > self.max_workers):
-                #    self.print_progress(index-self.max_workers)
                 
-                
-                if (tmp_count > self.max_workers + 1):
+                while (self.progress_queue.qsize() > 0):
                     _count += 1
-                    self.print_progress(_count)
+                    item = self.progress_queue.get()
+                    
+                self.print_progress(_count)
                 #print ("add %d, qsize=%d\n"%(tmp_count, self.threadpool._work_queue.qsize()))
-                  
-            for i in range(15):
-                all_done = True
-                done_count = 0
-                for f in last_features:
-                    if (f != None):
-                        if (f.done()):
-                            done_count +=1
-                        else:
-                            all_done = False
-                            time.sleep(1)
-                            break
-                if (all_done):
-                    break
             
-            self.print_progress(self.total_segments)
+            while(_count < self.total_segments):
+                try:
+                    item = self.progress_queue.get(timeout=4)
+                except Exception as e:
+                    print("======%s\n000000000000\n"%e)
+                _count += 1
+                self.print_progress(_count)
+            
+            #self.print_progress(self.total_segments)
             print ("")
-            print ("debug: all-%d,done-%d, i=%d,done_count=%d"%(self.total_segments, done_count+_count,i, done_count))
+            print ("debug: all-%d,done-%d"%(self.total_segments, _count))
             if (self.failed_count == 0):
                 break
             print("Failed to download %d segment(s), try again!"%(self.failed_count))
