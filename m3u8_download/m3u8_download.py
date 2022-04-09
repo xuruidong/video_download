@@ -8,7 +8,7 @@ from glob import iglob
 from natsort import natsorted
 from urllib.parse import urljoin,urlparse
 #from dataclasses import dataclass
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 #from .aes_encrypt import *
 import aes_encrypt
 import subprocess
@@ -94,7 +94,11 @@ class DownLoad_M3U8(object):
         self.total_segments = 0
         self.failed_count = 0
         self.success_count = 0
-        self.progress_queue = queue.Queue()
+        self.max_time = 0
+        self.min_time = 1000
+        self.sum_time = 0
+        self.download_count = 0
+        # self.progress_queue = queue.Queue()
         
         try:
             os.makedirs(self.save_path)
@@ -103,10 +107,23 @@ class DownLoad_M3U8(object):
         except:
             raise
 
-    def get_first_key(self, seg):
+    def update_time(self, tim):
+        if(tim > self.max_time):
+            self.max_time = tim
+        if(tim < self.min_time):
+            self.min_time = tim
+        self.sum_time += tim
+        self.download_count += 1
+        
+    def get_key(self, seg):
+        key = None
+        key_uri_src = None
         if ("key" in seg.keys()):
             key_uri_src = seg["key"]["uri"]
-            
+            if (key_uri_src == self.key_uri):
+                key = self.key
+                return key, key_uri_src
+            print ("debug: get key from %s" % key_uri_src)
             if (os.path.isfile(self.base_uri)):
                 if(not os.path.isabs(key_uri_src)):
                     key_uri = self.base_uri + key_uri_src
@@ -117,24 +134,34 @@ class DownLoad_M3U8(object):
             else:           
                 key_uri = urljoin(self.base_uri, key_uri_src)
                 
-                for i in range(3):
-                    try:
-                        res = requests.get(key_uri, headers=self.headers, timeout=3)
-                        #print ("get first key :%s"%res.content)
-                    except Exception as e:
-                        print ("[get_first_key:125]get key error: url=%s, %s, get_key" % (
-                            key_uri, e))
-                        # sys.exit(1)
-                        if i >= 2 :
-                            return None
-                        continue                        
-            
-                key = res.content
-            if (len(key) > 100):
+                try:
+                    res = requests.get(key_uri, headers=self.headers, timeout=3)
+                    #print ("get first key :%s"%res.content)
+                except Exception as e:
+                    print ("[get_first_key:125]get key error: url=%s, %s, get_key" % (
+                        key_uri, e))
+                    
+                    return key, key_uri_src
+
+            if (len(res.content) > 100):
                 print ("key len > 100,")
-                return None
+                return key, key_uri_src
+            key = res.content
+            
+        return key, key_uri_src
+            
+    def get_first_key(self, seg):
+        key, key_uri = None, None
+        for i in range(3):
+            key, key_uri = self.get_key(seg)
+            if (not key_uri):
+                break
+            if (key_uri and key):
+                break
+
+        if (key_uri and key):
             self.key = key
-            self.key_uri = key_uri_src
+            self.key_uri = key_uri
         
         return self.key
             
@@ -148,48 +175,25 @@ class DownLoad_M3U8(object):
             yield seg       
     
     def download_single_ts2(self, ts_info):
+        t_start = time.time()
+        fail = False
         try:
             seg,ts_name = ts_info
-            # print (seg)
-            # print (self.key_uri)
-            # time.sleep(1)   ??????
-            #download key
-            if ("key" in seg.keys()):
-                key_uri_src = seg["key"]["uri"]
-                if (key_uri_src == self.key_uri):
-                    key = self.key
-                else:
-                    print ("debug: get key from ")
-                    
-                    #if (valid_url(key_uri_src) == False):
-                    #    key_uri = urljoin(self.base_uri, key_uri_src)
-                    key_uri = urljoin(self.base_uri, key_uri_src)
-                    print ("key_uri=%s"%key_uri) 
-                    print ("self.base_uri=%s"%self.base_uri)
-                    try:
-                        res = requests.get(key_uri, headers=self.headers, timeout=3)
-                        print ("get key: %s\n"%res.content)
-                    except Exception as e:
-                        print ("get key error: url=%s, %s, get_key %s"%(key_uri,e, ts_name)) 
-                        self.progress_queue.put(1)
-                        return
-                    
-                    key = res.content
-                    if (len(key) > 100):
-                        print ("key len > 100,")
-                        self.progress_queue.put(1)
-                        return
-                    self.key = key
-                    self.key_uri = key_uri_src
-            
+
+            # download key
+            key, key_uri = self.get_key(seg)
+            if (key_uri and not key):
+                print ("get key error: url=%s, %s, get_key %s" %
+                       (key_uri, e, ts_name))
+                return 1
+
             #download ts
             url = urljoin(self.base_uri,seg["uri"])
             res = requests.get(url, headers=self.headers, timeout=3)
             with open(ts_name,'wb') as fp:
                 fp.write(res.content)
             
-            
-            #decrypt
+            # decrypt
             try:
                 if ("key" in seg.keys()):
                     method = seg["key"]["method"]   # "AES-128"
@@ -219,19 +223,28 @@ class DownLoad_M3U8(object):
                 print ("\ndownload_single_ts2 decrypt :%s"%e)
                 os.remove(ts_name)
                 self.failed_count += 1
+                fail = True
         except requests.exceptions.ReadTimeout as e:
-            #print ("\ndownload_single_ts2 ReadTimeout :%s"%e)
+            # print ("\ndownload_single_ts2 download %s ReadTimeout :%s" %(ts_name, e))
             self.failed_count += 1
+            fail = True
         except requests.exceptions.ConnectionError as e:
+            # print ("\ndownload_single_ts2 download %s ConnectionError :%s" %(ts_name, e))
             self.failed_count += 1
+            fail = True
             time.sleep(0.5)
         except Exception as e:
             print ("  download_single_ts2 download %s error:%s"%(ts_name,e))
             print ("class name=%s"%(e.__class__.__name__))
             self.failed_count += 1
             time.sleep(0.5)
-            
-        self.progress_queue.put(1)
+            fail = True
+
+        # print("\n ==4== %s use %f" % (ts_name, time.time() - t_start))
+        self.update_time(time.time() - t_start)
+        if (fail):
+            return 1
+        return 0
     
     def print_progress_old(self, index):
         n1 = int((index+1)*50/self.total_segments)
@@ -254,8 +267,12 @@ class DownLoad_M3U8(object):
         content["url"] = self.m3u8_url
         content["segments"] = self.total_segments
         content["base_uri"] = self.base_uri
-        content["key"] = self.key.hex()
-        content["key_uri"] = self.key_uri
+        if(self.key):
+            content["key"] = self.key.hex()
+            content["key_uri"] = self.key_uri
+        else:
+            content["key"] = ""
+            content["key_uri"] = ""
         
         with open("%s/infomation.txt"%self.save_path, "wb") as f:
             f.write(json.dumps(content).encode())
@@ -304,51 +321,54 @@ class DownLoad_M3U8(object):
                 print("m3u8 segments len = 0")
                 return;
             self.get_first_key(m3u8_obj.data["segments"][0])
-            if (not self.key or self.key == b''):
+            if (self.key_uri and not self.key):
                 return []
             
             #save base_url and key
             self.dump_info()
         
-        for i in range(0, 3):
+        for i in range(0, 5):
             _count = 0
-            tmp_count = 0
-            if(self.progress_queue.qsize() > 0):
-                print("self.progress_queue is not empty!")
-                while (self.progress_queue.qsize() > 0):
-                    item = self.progress_queue.get()
-            
+
             ts_segs = self.get_ts_segment(m3u8_obj)
             self.failed_count = 0
+            fail_count = 0
+            f_set = set()
             for index,ts_seg in enumerate(ts_segs):
                 save_name = "%s/%d.ts"%(self.save_path, index)
                 if (os.path.exists(save_name)):
                     _count += 1
                     continue
                 while (self.threadpool._work_queue.qsize() > 0):
-                    time.sleep(1)
-                #print ("%d\r"%(index+1), end='')
-                tmp_count += 1
-                f = self.threadpool.submit(self.download_single_ts2,[ts_seg, save_name])
-                
-                while (self.progress_queue.qsize() > 0):
-                    _count += 1
-                    item = self.progress_queue.get()
-                    
+                    for future in as_completed(f_set):
+                        data = future.result()
+                        # print(f"===wiat {data}")
+                        if(data != 0):
+                            fail_count += 1
+                        f_set.remove(future)
+                        _count += 1
+                        break
+                # print ("%d\r"%(index+1), end='')
+                f = self.threadpool.submit(self.download_single_ts2, [
+                                           ts_seg, save_name])
+                f_set.add(f)
+
                 self.print_progress(_count)
                 #print ("add %d, qsize=%d\n"%(tmp_count, self.threadpool._work_queue.qsize()))
-            
-            while(_count < self.total_segments):
-                try:
-                    item = self.progress_queue.get(timeout=4)
-                except Exception as e:
-                    print("======%s\n000000000000\n"%e)
+
+            # print ("f_set len:%d" % len(f_set))
+            # while(_count < self.total_segments):
+            for future in as_completed(f_set):
+                data = future.result()
+                # print(f"main: {data}")
                 _count += 1
                 self.print_progress(_count)
+                if(data != 0):
+                    fail_count += 1                
             
-            #self.print_progress(self.total_segments)
             print ("")
-            print ("debug: all-%d,done-%d"%(self.total_segments, _count))
+            print ("debug: all-%d,done-%d, fail:%d" %
+                   (self.total_segments, _count, fail_count))
             if (self.failed_count == 0):
                 break
             print("Failed to download %d segment(s), try again!"%(self.failed_count))
