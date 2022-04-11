@@ -79,7 +79,6 @@ class DownLoad_M3U8(object):
         self.file_name = file_name
         self.headers   = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.100 Safari/537.36',
                           'accept-encoding': 'gzip, deflate, br',
-                          #'referer': 'https://vod.bunediy.com/share/hiAB0dgxRvsc3I04',
                           #'accept-language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7'
                           }
         self.max_workers = 5
@@ -222,21 +221,17 @@ class DownLoad_M3U8(object):
             except Exception as e:
                 print ("\ndownload_single_ts2 decrypt :%s"%e)
                 os.remove(ts_name)
-                self.failed_count += 1
                 fail = True
         except requests.exceptions.ReadTimeout as e:
             # print ("\ndownload_single_ts2 download %s ReadTimeout :%s" %(ts_name, e))
-            self.failed_count += 1
             fail = True
         except requests.exceptions.ConnectionError as e:
             # print ("\ndownload_single_ts2 download %s ConnectionError :%s" %(ts_name, e))
-            self.failed_count += 1
             fail = True
             time.sleep(0.5)
         except Exception as e:
             print ("  download_single_ts2 download %s error:%s"%(ts_name,e))
             print ("class name=%s"%(e.__class__.__name__))
-            self.failed_count += 1
             time.sleep(0.5)
             fail = True
 
@@ -245,14 +240,6 @@ class DownLoad_M3U8(object):
         if (fail):
             return 1
         return 0
-    
-    def print_progress_old(self, index):
-        n1 = int((index+1)*50/self.total_segments)
-        n2 = 50-n1
-        f_perc = 0
-        if (index > 0):
-            f_perc = self.failed_count*100/index
-        print ("\r├%s%s┤ %.2f%%  FAILED:%d(%.2f%%)"%("#"*n1, " "*n2, (index+1)*100/self.total_segments, self.failed_count, f_perc), end='')
     
     def print_progress(self, count):
         n1 = int(count*50/self.total_segments)
@@ -326,7 +313,8 @@ class DownLoad_M3U8(object):
             
             #save base_url and key
             self.dump_info()
-        
+
+        fail_count = 0
         for i in range(0, 5):
             _count = 0
 
@@ -353,6 +341,7 @@ class DownLoad_M3U8(object):
                                            ts_seg, save_name])
                 f_set.add(f)
 
+                self.failed_count = fail_count
                 self.print_progress(_count)
                 #print ("add %d, qsize=%d\n"%(tmp_count, self.threadpool._work_queue.qsize()))
 
@@ -361,23 +350,24 @@ class DownLoad_M3U8(object):
             for future in as_completed(f_set):
                 data = future.result()
                 # print(f"main: {data}")
-                _count += 1
-                self.print_progress(_count)
                 if(data != 0):
                     fail_count += 1                
-            
+                _count += 1
+                self.failed_count = fail_count
+                self.print_progress(_count)                
+
             print ("")
             print ("debug: all-%d,done-%d, fail:%d" %
                    (self.total_segments, _count, fail_count))
-            if (self.failed_count == 0):
+            if (fail_count == 0):
                 break
-            print("Failed to download %d segment(s), try again!"%(self.failed_count))
+            print("Failed to download %d segment(s), try again!" %
+                  (fail_count))
             
         self.threadpool.shutdown()
         
-        
-        if (self.failed_count > 0):
-            print ("Failed to download some segments, %d"%(self.failed_count))
+        if (fail_count > 0):
+            print ("Failed to download some segments, %d" % (fail_count))
 
     def run(self):
         t_start = time.time()
@@ -389,9 +379,7 @@ class DownLoad_M3U8(object):
             return
         
         print ("merging...")
-        
-        ts_path = '%s/*.ts'%self.save_path
-
+        ts_path = '%s/*.ts' % self.save_path
         file_num = merge(ts_path, save_name)
 
         print ("download %d file(s). use %f seconds"%(file_num, time.time() - t_start))
