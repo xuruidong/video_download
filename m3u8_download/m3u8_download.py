@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import aes_encrypt
 import subprocess
 import queue
-
+import math
 import json
 
 import logging
@@ -81,8 +81,7 @@ class DownLoad_M3U8(object):
                           'accept-encoding': 'gzip, deflate, br',
                           #'accept-language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7'
                           }
-        self.max_workers = 5
-        self.threadpool = ThreadPoolExecutor(max_workers=self.max_workers)
+        self.max_workers = 15
         if not self.file_name:
             self.file_name = 'm3u8new.ts'
         self.base_url = None
@@ -93,6 +92,7 @@ class DownLoad_M3U8(object):
         self.total_segments = 0
         self.failed_count = 0
         self.success_count = 0
+        self.timeout = 4
         self.max_time = 0
         self.min_time = 1000
         self.sum_time = 0
@@ -134,7 +134,8 @@ class DownLoad_M3U8(object):
                 key_uri = urljoin(self.base_uri, key_uri_src)
                 
                 try:
-                    res = requests.get(key_uri, headers=self.headers, timeout=3)
+                    res = requests.get(key_uri,
+                                       headers=self.headers, timeout=3)
                     #print ("get first key :%s"%res.content)
                 except Exception as e:
                     print ("[get_first_key:125]get key error: url=%s, %s, get_key" % (
@@ -188,7 +189,8 @@ class DownLoad_M3U8(object):
 
             #download ts
             url = urljoin(self.base_uri,seg["uri"])
-            res = requests.get(url, headers=self.headers, timeout=3)
+            res = requests.get(url, headers=self.headers,
+                               timeout=self.timeout)
             with open(ts_name,'wb') as fp:
                 fp.write(res.content)
             
@@ -254,6 +256,7 @@ class DownLoad_M3U8(object):
         content["url"] = self.m3u8_url
         content["segments"] = self.total_segments
         content["base_uri"] = self.base_uri
+        content["timeout"] = self.timeout
         if(self.key):
             content["key"] = self.key.hex()
             content["key_uri"] = self.key_uri
@@ -272,6 +275,10 @@ class DownLoad_M3U8(object):
             self.base_uri = content["base_uri"]
             self.key = bytes.fromhex(content["key"])
             self.key_uri = content["key_uri"]
+            try:
+                self.timeout = content["timeout"]
+            except:
+                pass
         except Exception as e:
             content = {}
             # print (e)
@@ -285,17 +292,19 @@ class DownLoad_M3U8(object):
             m3u8_obj = m3u8.load("%s/tmp.m3u8"%self.save_path)
             # print (res)
         else:
-            for i in range(0,3):
+            for i in range(0, 6):
+                self.timeout = 4 * math.pow(2, i)
                 try:
-                    m3u8_obj = m3u8.load(self.m3u8_url, timeout=3, headers=self.headers)
+                    m3u8_obj = m3u8.load(self.m3u8_url,
+                                         timeout=self.timeout, headers=self.headers)
                     m3u8_obj.dump("%s/tmp.m3u8"%self.save_path)
                 except Exception as e:
                     print ("get m3u8 info error: %s"%e)
-                    logging.exception("get m3u8 info error")
-                    if (i >= 2):
+                    if (i >= 5):
+                        logging.exception("get m3u8 info error")
                         raise
                     continue
-                break 
+                break
             
             print ("totals %d"%len(m3u8_obj.data["segments"]))
             self.base_uri = m3u8_obj.base_uri
@@ -314,6 +323,12 @@ class DownLoad_M3U8(object):
             #save base_url and key
             self.dump_info()
 
+        if (self.timeout > 30):
+            self.max_workers = 20
+        elif(self.timeout > 10):
+            self.max_workers = 8
+        print(f"set timeout:{self.timeout}, maxworker:{self.max_workers}")
+        threadpool = ThreadPoolExecutor(max_workers=self.max_workers)
         fail_count = 0
         for i in range(0, 5):
             _count = 0
@@ -327,18 +342,17 @@ class DownLoad_M3U8(object):
                 if (os.path.exists(save_name)):
                     _count += 1
                     continue
-                while (self.threadpool._work_queue.qsize() > 0):
+                while (threadpool._work_queue.qsize() > 0):
                     for future in as_completed(f_set):
                         data = future.result()
-                        # print(f"===wiat {data}")
                         if(data != 0):
                             fail_count += 1
                         f_set.remove(future)
                         _count += 1
                         break
-                # print ("%d\r"%(index+1), end='')
-                f = self.threadpool.submit(self.download_single_ts2, [
-                                           ts_seg, save_name])
+
+                f = threadpool.submit(self.download_single_ts2, [
+                    ts_seg, save_name])
                 f_set.add(f)
 
                 self.failed_count = fail_count
@@ -364,7 +378,7 @@ class DownLoad_M3U8(object):
             print("Failed to download %d segment(s), try again!" %
                   (fail_count))
             
-        self.threadpool.shutdown()
+        threadpool.shutdown()
         
         if (fail_count > 0):
             print ("Failed to download some segments, %d" % (fail_count))
