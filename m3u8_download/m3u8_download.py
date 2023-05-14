@@ -294,16 +294,33 @@ class DownLoad_M3U8(object):
         else:
             for i in range(0, 6):
                 self.timeout = 4 * math.pow(2, i)
+                '''
                 try:
                     m3u8_obj = m3u8.load(self.m3u8_url,
                                          timeout=self.timeout, headers=self.headers)
                     m3u8_obj.dump("%s/tmp.m3u8"%self.save_path)
                 except Exception as e:
+                    #  error: 'utf-8' codec can't decode byte 0x8b in position 1: invalid start byte
                     print ("get m3u8 info error: %s"%e)
                     if (i >= 5):
                         logging.exception("get m3u8 info error")
                         raise
                     continue
+                '''
+                try:
+                    res = requests.get(self.m3u8_url, headers=self.headers,
+                                       timeout=self.timeout)
+                except Exception as e:
+                    print("get m3u8 info error: %s"%e)
+                    if (i >= 5):
+                        raise
+                    continue
+                print("get m3u8 text:", res.text)
+                with open("%s/tmp.m3u8"%self.save_path, "w") as f:
+                    f.write(res.text)
+                    
+                m3u8_obj = m3u8.load("%s/tmp.m3u8"%self.save_path)
+                m3u8_obj.base_uri = self.m3u8_url
                 break
             
             print ("totals %d"%len(m3u8_obj.data["segments"]))
